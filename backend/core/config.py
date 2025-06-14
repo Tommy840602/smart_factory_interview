@@ -11,4 +11,17 @@ class Settings():
 
 settings = Settings()
 
+#OPCUA
+OPCUA_URL="opc.tcp://huangyanweideMacBook-Air.local:53530/OPCUA/SimulationServer"
+
+#MQTT Broker
+MQTT_BROKER="localhost"
+MQTT_PORT=1883
+TOPIC_TEMP="sensor/temperature"
+TOPIC_HUM="sensor/humidity"
+TOPIC_AC="actuators/ac"
+TOPIC_DEH="actuators/dehumidifier"
+
+
+
 

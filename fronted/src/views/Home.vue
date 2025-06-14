@@ -9,6 +9,9 @@
         <div class="section">
             <Ups/>
         </div>
+        <div class="section">
+            <SensorDisplay/>
+        </div>
         <div class="section three-section">
             <ThreeScene/>
         </div>
@@ -25,6 +28,7 @@ import Ups from '@/components/Ups.vue';
 import Weather from '@/components/Weather.vue';
 import ThreeScene from '@/components/ThreeScene.vue';
 import Classify from '@/components/Classify.vue';
+import SensorDisplay from '@/components/SensorDisplay.vue';
 </script>
 
 <style scoped>
