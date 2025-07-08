@@ -1,8 +1,5 @@
-import os
-import io
-import grpc
+import os,io,grpc,threading,torch
 import numpy as np
-import torch
 from concurrent import futures
 from PIL import Image
 from torchvision import transforms
@@ -76,5 +73,8 @@ def serve():
     server.start()
     server.wait_for_termination()
 
-if __name__ == '__main__':
-    serve()
+
+def start_background_grpc_server():
+    thread=threading.Thread(target=serve,daemon=True)
+    thread.start()
+    

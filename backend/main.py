@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
-import uvicorn
+import uvicorn,subprocess,asyncio
 from backend.api.power_supply import power_router
 from backend.api.ups_info import ups_router
 from backend.api.get_weather import weather_router
@@ -10,11 +10,24 @@ from backend.api.get_earthquake import earthquake_router
 from backend.api.classify_image import grpc_router
 from contextlib import asynccontextmanager
 from backend.utils.ups_simulation import start_background_ups_simulator
+from backend.core.redis import start_redis
+from backend.services.grpc_server import start_background_grpc_server
+from backend.services.control_env import start_background_mqtt_server
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    subprocess.run(["pkill", "beam.smp"], check=False)
+    subprocess.run(["lsof", "-i", ":1883"], check=False)
+    subprocess.run(["brew", "services", "restart", "emqx"], check=True)  
+    start_redis()
     start_background_ups_simulator()
-    yield
+    start_background_grpc_server()
+    asyncio.create_task(start_background_mqtt_server())
+    try:
+        yield
+    finally:
+        pass
+
 
 app=FastAPI(lifespan=lifespan)
 

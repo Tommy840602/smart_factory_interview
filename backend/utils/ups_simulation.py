@@ -1,4 +1,4 @@
-import time,threading
+import time,threading,subprocess
 
 def generate_seq(filename="/opt/homebrew/etc/nut/simulation.seq"):
     with open(filename, "w") as f:
@@ -126,3 +126,5 @@ def generate_seq(filename="/opt/homebrew/etc/nut/simulation.seq"):
 def start_background_ups_simulator():
     thread = threading.Thread(target=generate_seq, daemon=True)
     thread.start()
+    subprocess.run(["/opt/homebrew/Cellar/nut/2.8.2/sbin/upsdrvctl", "start", "dummy"],check=True)
+    subprocess.Popen(["/opt/homebrew/Cellar/nut/2.8.2/sbin/upsd"],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)

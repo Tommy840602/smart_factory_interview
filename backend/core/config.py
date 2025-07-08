@@ -12,7 +12,7 @@ class Settings():
 settings = Settings()
 
 #OPCUA
-OPCUA_URL="opc.tcp://huangyanweideMacBook-Air.local:53530/OPCUA/SimulationServer"
+OPCUA_URL="opc.tcp://MacBookAir.lan:53530/OPCUA/SimulationServer"
 
 #MQTT Broker
 MQTT_BROKER="localhost"
