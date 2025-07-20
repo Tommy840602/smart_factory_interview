@@ -3,7 +3,6 @@ import io
 import grpc
 from fastapi import APIRouter, HTTPException
 from PIL import Image
-
 from backend.core.grpc_channel import get_classifier_stub, get_gcs_client
 from backend.utils.image_pb2 import ImageRequest
 

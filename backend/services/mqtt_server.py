@@ -4,6 +4,19 @@ import logging
 import numpy as np
 import paho.mqtt.client as mqtt
 from backend.core.config import (MQTT_BROKER, MQTT_PORT, TOPIC_AC, TOPIC_DEH, TOPIC_HUM, TOPIC_TEMP)
+from kafka import KafkaProducer
+import json,os
+import time
+from dotenv import load_dotenv
+
+load_dotenv()
+KAFKA_SERVER = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "localhost:9092")
+KAFKA_TOPIC  = os.getenv("KAFKA_MQTT_TOPIC","sensor")
+
+producer = KafkaProducer(
+    bootstrap_servers=KAFKA_SERVER,
+    value_serializer=lambda v: json.dumps(v).encode("utf-8")
+)
 
 # 温湿度上下限
 TEMP_LO, TEMP_HI = 24.0, 26.0
@@ -78,22 +91,25 @@ async def start_background_mqtt_server():
             deh_on = hum  < HUM_LO  or hum  > HUM_HI
 
             # 发布
-            payloads = [
-                (TOPIC_TEMP, f"{temp:.2f}"),
-                (TOPIC_HUM,  f"{hum:.2f}"),
-                (TOPIC_AC,   "ON" if ac_on else "OFF"),
-                (TOPIC_DEH,  "ON" if deh_on else "OFF"),
-            ]
-            for topic, val in payloads:
-                rc, _ = mqtt_client.publish(topic, val, qos=0, retain=True)
-                if rc != mqtt.MQTT_ERR_SUCCESS:
-                    logger.error(f"⚠️ Pub failed → {topic}={val}")
+            kafka_payload = {
+                "source": "mqtt",
+                "payload": {
+                    "temperature": round(temp, 2),
+                    "humidity": round(hum, 2),
+                    "ac": "ON" if ac_on else "OFF",
+                    "dehumidifier": "ON" if deh_on else "OFF"
+                }
+            }
+            producer.send(KAFKA_TOPIC, kafka_payload)
+            mqtt_client.publish(TOPIC_TEMP, f"{temp:.2f}", qos=0, retain=True)
+            mqtt_client.publish(TOPIC_HUM, f"{hum:.2f}", qos=0, retain=True)
+            mqtt_client.publish(TOPIC_AC, "ON" if ac_on else "OFF", qos=0, retain=True)
+            mqtt_client.publish(TOPIC_DEH, "ON" if deh_on else "OFF", qos=0, retain=True)
 
             logger.info(
-                f"📡 发布 → temp={temp:.2f}, hum={hum:.2f}, "
+                f"📡 發布 → temp={temp:.2f}, hum={hum:.2f}, "
                 f"AC={'ON' if ac_on else 'OFF'}, DEH={'ON' if deh_on else 'OFF'}"
             )
-
             await asyncio.sleep(dt)
 
     finally:

@@ -7,6 +7,19 @@ from google.cloud import storage
 import backend.utils.image_pb2 as pb2
 import backend.utils.image_pb2_grpc as pb2_grpc
 from backend.model.autoencoder import Autoencoder
+from kafka import KafkaProducer
+import json
+import time  
+from dotenv import load_dotenv
+
+load_dotenv()
+KAFKA_SERVER = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "localhost:9092")
+KAFKA_TOPIC  = os.getenv("KAFKA_GRPC_TOPIC", "image")
+
+producer = KafkaProducer(
+    bootstrap_servers=KAFKA_SERVER,
+    value_serializer=lambda v: json.dumps(v).encode("utf-8")
+)
 
 # 1. 初始化模型 & encoder
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -42,21 +55,28 @@ class ImageStreamerServicer(pb2_grpc.ImageStreamerServicer):
 class ImageClassifierServicer(pb2_grpc.ImageClassifierServicer):
     def Classify(self, request_iterator, context):
         for req in request_iterator:
-            # 1) 从 bytes 解出 PIL Image
             img = Image.open(io.BytesIO(req.image_data)).convert("RGB")
-            # 2) 用 224×224 pipeline
             x = PREPROCESS(img).unsqueeze(0).to(DEVICE)
-            # 3) encoder
             with torch.no_grad():
                 z = encoder(x)
-            z_flat = z.view(z.size(0), -1).cpu().numpy()[0]  # shape (3136,)
-
-            # 4) 计算到每个质心的 MSE 距离
-            dists = np.mean((CENTROIDS - z_flat)**2, axis=1)  # shape (6,)
-            idx   = int(np.argmin(dists))
+            z_flat = z.view(z.size(0), -1).cpu().numpy()[0]
+            dists = np.mean((CENTROIDS - z_flat)**2, axis=1)
+            idx = int(np.argmin(dists))
             label = CLASS_NAMES[idx]
-            # 简易 confidence
-            conf  = 1 - float(dists[idx] / (dists.sum() + 1e-8))
+            conf = 1 - float(dists[idx] / (dists.sum() + 1e-8))
+
+            # ✅ 推送 Kafka
+            kafka_payload = {
+                "image_id": req.image_id,
+                "label": label,
+                "confidence": round(conf, 4),
+                "timestamp": time.time()
+            }
+            try:
+                producer.send(KAFKA_TOPIC, kafka_payload)
+                print(f"📤 Kafka 推送：{kafka_payload}")
+            except Exception as e:
+                print(f"❌ Kafka 發送失敗：{e}")
 
             yield pb2.ClassificationResult(
                 image_id   = req.image_id,
