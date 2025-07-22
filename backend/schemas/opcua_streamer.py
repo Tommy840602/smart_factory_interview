@@ -1,22 +1,19 @@
 from asyncua import Client
-import asyncio
+from asyncua.ua.uaerrors import UaError
 
 class OPCUAStreamer:
-    def __init__(self, endpoint: str, node_ids: list[str]):
-        self.endpoint = endpoint
+    def __init__(self, client: Client, node_ids: list[str]):
+        self.client = client
         self.node_ids = node_ids
-        self.client = Client(url=endpoint)
-        self.nodes = []
-        self.connected = False
-
-    async def connect(self):
-        await self.client.connect()
-        self.nodes = [self.client.get_node(nodeid) for nodeid in self.node_ids]
-        self.connected = True
+        self.nodes = [self.client.get_node(nid) for nid in node_ids]
 
     async def read_all(self):
-        if not self.connected:
-            await self.connect()
-        values = await asyncio.gather(*(n.read_value() for n in self.nodes))
-        return dict(zip(self.node_ids, values))
+        try:
+            values = await self.client.read_values(self.nodes)
+            return dict(zip(self.node_ids, values))
+        except UaError as e:
+            raise e
+
+
+
 

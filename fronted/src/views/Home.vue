@@ -9,8 +9,8 @@
         <div class="section">
             <Ups/>
         </div>
-        <div class="section three-section">
-            <ThreeScene/>
+        <div class="section three-section mqtt-section">
+            <SceneWrapper/>
         </div>
         <div class="section">
             <Classify/>
@@ -22,8 +22,8 @@
 import Power from '@/components/Power.vue'
 import Ups from '@/components/Ups.vue';
 import Weather from '@/components/Weather.vue';
-import ThreeScene from '@/components/ThreeScene.vue';
 import Classify from '@/components/Classify.vue';
+import SceneWrapper from '@/pages/SceneWrapper.vue';
 </script>
 
 <style scoped>
@@ -49,5 +49,13 @@ import Classify from '@/components/Classify.vue';
 .three-section {
     min-height: 500px;
     position: relative;
+}
+
+.mqtt-section {
+  border: 2px solid #4CAF50;
+}
+
+.opcua-section {
+  border: 2px solid #2196F3;
 }
 </style>

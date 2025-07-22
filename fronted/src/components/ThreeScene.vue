@@ -1,6 +1,6 @@
 <template>
   <div ref="glContainer" class="three-container">
-    <HoverInfo :hoverData="hoveredObject" :chartRecords="chartDataMap" />
+    <HoverInfo :hoverData="hoveredObject" :chartRecords="props.chartRecords" />
   </div>
 </template>
 
@@ -10,7 +10,6 @@ import * as THREE from 'three'
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import { CSS2DRenderer, CSS2DObject } from 'three/examples/jsm/renderers/CSS2DRenderer.js'
-import mqtt from 'mqtt'
 import HoverInfo from '@/components/HoverInfo.vue'
 
 const axes = new THREE.AxesHelper(1.5)
@@ -27,7 +26,10 @@ const circles = []
 const circleDataMap = new Map()
 const chartDataMap = new Map()
 const chartInstance = ref(null)
-
+const props = defineProps({
+  sensorData: Object,
+  chartRecords: Object
+})
 // ========== 日照資料 API ==========
 async function fetchSunData() {
   const res = await fetch('http://localhost:8000/api/suntime')
@@ -85,6 +87,11 @@ function checkHover() {
     infoPosition.value = {
       x: (proj.x + 1) / 2 * window.innerWidth,
       y: (1 - proj.y) / 2 * window.innerHeight
+    }
+    
+    const entry = circleDataMap.get(name)
+    if (entry && props.sensorData?.[name] !== undefined) {
+      entry.circle.userData.meta = `Value: ${props.sensorData[name]}`
     }
 
     hoveredObject.value = {
@@ -212,7 +219,6 @@ async function initScene() {
     updateLight(data.now, data.sunrise, data.sunset)
   }, 60_000)
 
-  connectMQTT()
 
   ;(function animate() {
     frameId = requestAnimationFrame(animate)
@@ -222,47 +228,6 @@ async function initScene() {
     labelRenderer.render(scene, camera)  // ← 正確放這
   })()
 }
-
-function connectMQTT() {
-  const client = mqtt.connect('ws://localhost:8083/mqtt')  // 調整為你自己的 MQTT Broker 位址
-
-  client.on('connect', () => {
-    console.log('✅ MQTT connected')
-    client.subscribe('sensor/temperature')
-    client.subscribe('sensor/humidity')
-  })
-
-  client.on('message', (topic, message) => {
-  const payload = message.toString()
-  if (topic === 'sensor/temperature') {
-    const entry = circleDataMap.get('Sensor_1')
-    if (entry) {
-      entry.circle.userData.meta = `Temperature: ${payload}°C`
-      addChartData('Sensor_1', payload)   // ✅ 加上這行
-    }
-  } else if (topic === 'sensor/humidity') {
-    const entry = circleDataMap.get('Sensor_2')
-    if (entry) {
-      entry.circle.userData.meta = `Humidity: ${payload}%`
-      addChartData('Sensor_2', payload)   // ✅ 加上這行
-    }
-  }
-})
-}
-
-function addChartData(name, value) {
-  if (!chartDataMap.has(name)) {
-    chartDataMap.set(name, [])
-  }
-  const records = chartDataMap.get(name)
-  const now = Date.now()
-  records.push({ time: now, value: parseFloat(value) })
-  // 僅保留最近 30 筆（或 30 秒）
-  while (records.length > 30) {
-    records.shift()
-  }
-}
-
 
 onMounted(initScene)
 

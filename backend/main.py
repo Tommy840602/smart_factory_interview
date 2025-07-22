@@ -20,6 +20,7 @@ from backend.schemas.opcua_streamer import OPCUAStreamer
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    asyncio.create_task(start_background_opcua_server())
     subprocess.run(["pkill", "beam.smp"], check=False)
     subprocess.run(["lsof", "-i", ":1883"], check=False)
     subprocess.run(["brew", "services", "restart", "emqx"], check=True)  
@@ -54,7 +55,7 @@ app.include_router(weather_router, prefix="/api")
 app.include_router(kmap_router, prefix="/api")
 app.include_router(earthquake_router, prefix="/api")
 app.include_router(grpc_router, prefix="/api")
-app.include_router(robot_router,prefix="/api")
+app.include_router(robot_router)
 
 
 if __name__=="__main__":
