@@ -3,7 +3,6 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 import uvicorn,subprocess,asyncio
 from backend.api.power_supply import power_router
-from backend.api.robot_data import  robot_router
 from backend.api.ups_info import ups_router
 from backend.api.get_weather import weather_router
 from backend.api.k_map import kmap_router
@@ -14,9 +13,8 @@ from backend.utils.ups_simulation import start_background_ups_simulator
 from backend.core.redis import start_redis
 from backend.services.grpc_server import start_background_grpc_server
 from backend.services.mqtt_server import start_background_mqtt_server
+from backend.services.opuca_server import sync_storage_to_opcua_kafka
 from backend.services.opuca_server import start_background_opcua_server
-from backend.core.discover_nodes import discover_opcua_nodes
-from backend.schemas.opcua_streamer import OPCUAStreamer
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -28,9 +26,17 @@ async def lifespan(app: FastAPI):
     start_background_ups_simulator()
     start_background_grpc_server()
     asyncio.create_task(start_background_mqtt_server())
-
-    # ✅ 懶加載準備：建立空的 streamer dict
-    app.state.opcua_streamer_dict = {}
+    await asyncio.sleep(1)
+    async def retry_sync():
+        while True:
+            try:
+                await sync_storage_to_opcua_kafka()
+                print("✅ Sync done.")
+                break
+            except Exception as e:
+                print(f"⚠️ Sync failed: {e}，10秒後重試...")
+                await asyncio.sleep(10)
+    asyncio.create_task(retry_sync())
     try:
         yield
     finally:
@@ -55,7 +61,7 @@ app.include_router(weather_router, prefix="/api")
 app.include_router(kmap_router, prefix="/api")
 app.include_router(earthquake_router, prefix="/api")
 app.include_router(grpc_router, prefix="/api")
-app.include_router(robot_router)
+
 
 
 if __name__=="__main__":

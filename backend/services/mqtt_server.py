@@ -8,15 +8,26 @@ from kafka import KafkaProducer
 import json,os
 import time
 from dotenv import load_dotenv
+from backend.core.config import  get_local_producer,get_cloud_producer
 
 load_dotenv()
 KAFKA_SERVER = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "localhost:9092")
 KAFKA_TOPIC  = os.getenv("KAFKA_MQTT_TOPIC","sensor")
 
-producer = KafkaProducer(
-    bootstrap_servers=KAFKA_SERVER,
-    value_serializer=lambda v: json.dumps(v).encode("utf-8")
-)
+def send_kafka(topic, payload):
+    data = json.dumps(payload).encode("utf-8") if not isinstance(payload, bytes) else payload
+    local = get_local_producer()
+    cloud = get_cloud_producer()
+    if local:
+        try:
+            local.send(topic, data)
+        except Exception as e:
+            print(f"[本地Kafka] 發送失敗：{e}")
+    if cloud:
+        try:
+            cloud.send(topic, data)
+        except Exception as e:
+            print(f"[CloudKafka] 發送失敗：{e}")
 
 # 温湿度上下限
 TEMP_LO, TEMP_HI = 24.0, 26.0
@@ -100,7 +111,7 @@ async def start_background_mqtt_server():
                     "dehumidifier": "ON" if deh_on else "OFF"
                 }
             }
-            producer.send(KAFKA_TOPIC, kafka_payload)
+            send_kafka(KAFKA_TOPIC, kafka_payload)
             mqtt_client.publish(TOPIC_TEMP, f"{temp:.2f}", qos=0, retain=True)
             mqtt_client.publish(TOPIC_HUM, f"{hum:.2f}", qos=0, retain=True)
             mqtt_client.publish(TOPIC_AC, "ON" if ac_on else "OFF", qos=0, retain=True)

@@ -7,19 +7,14 @@ from google.cloud import storage
 import backend.utils.image_pb2 as pb2
 import backend.utils.image_pb2_grpc as pb2_grpc
 from backend.model.autoencoder import Autoencoder
-from kafka import KafkaProducer
 import json
 import time  
 from dotenv import load_dotenv
+from backend.core.config import get_local_producer,get_cloud_producer
 
 load_dotenv()
 KAFKA_SERVER = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "localhost:9092")
 KAFKA_TOPIC  = os.getenv("KAFKA_GRPC_TOPIC", "image")
-
-producer = KafkaProducer(
-    bootstrap_servers=KAFKA_SERVER,
-    value_serializer=lambda v: json.dumps(v).encode("utf-8")
-)
 
 # 1. 初始化模型 & encoder
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -52,6 +47,21 @@ class ImageStreamerServicer(pb2_grpc.ImageStreamerServicer):
             data = blob.download_as_bytes()
             yield pb2.ImageRequest(image_id=blob.name, image_data=data)
 
+def send_kafka(topic, payload):
+    data = json.dumps(payload).encode("utf-8") if not isinstance(payload, bytes) else payload
+    local = get_local_producer()
+    cloud = get_cloud_producer()
+    if local:
+        try:
+            local.send(topic, data)
+        except Exception as e:
+            print(f"[本地Kafka] 發送失敗：{e}")
+    if cloud:
+        try:
+            cloud.send(topic, data)
+        except Exception as e:
+            print(f"[CloudKafka] 發送失敗：{e}")
+
 class ImageClassifierServicer(pb2_grpc.ImageClassifierServicer):
     def Classify(self, request_iterator, context):
         for req in request_iterator:
@@ -72,11 +82,7 @@ class ImageClassifierServicer(pb2_grpc.ImageClassifierServicer):
                 "confidence": round(conf, 4),
                 "timestamp": time.time()
             }
-            try:
-                producer.send(KAFKA_TOPIC, kafka_payload)
-                print(f"📤 Kafka 推送：{kafka_payload}")
-            except Exception as e:
-                print(f"❌ Kafka 發送失敗：{e}")
+            send_kafka(KAFKA_TOPIC, kafka_payload)
 
             yield pb2.ClassificationResult(
                 image_id   = req.image_id,
