@@ -1,9 +1,3 @@
-<template>
-  <div ref="glContainer" class="three-container">
-    <HoverInfo :hoverData="hoveredObject" :chartRecords="props.chartRecords" />
-  </div>
-</template>
-
 <script setup>
 import { ref, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import * as THREE from 'three'
@@ -12,25 +6,25 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import { CSS2DRenderer, CSS2DObject } from 'three/examples/jsm/renderers/CSS2DRenderer.js'
 import HoverInfo from '@/components/HoverInfo.vue'
 
-const axes = new THREE.AxesHelper(1.5)
-
 const glContainer   = ref(null)
 const hoveredObject = ref(null)
 const infoPosition  = ref({ x: 0, y: 0 })
 
+// ✅ 雙 emit
+const emit = defineEmits(['sensor-hover', 'robot-hover'])
+
+const axes = new THREE.AxesHelper(1.5)
 let scene, camera, renderer, labelRenderer,
     controls, directionalLight, raycaster, mouse,
     frameId, sunInterval
 
 const circles = []
 const circleDataMap = new Map()
-const chartDataMap = new Map()
-const chartInstance = ref(null)
 const props = defineProps({
   sensorData: Object,
   chartRecords: Object
 })
-// ========== 日照資料 API ==========
+
 async function fetchSunData() {
   const res = await fetch('http://localhost:8000/api/suntime')
   return res.json()
@@ -38,8 +32,8 @@ async function fetchSunData() {
 
 function updateLight(now, sunrise, sunset) {
   const tNow = new Date(now)
-  const t0   = new Date(sunrise)
-  const t1   = new Date(sunset)
+  const t0 = new Date(sunrise)
+  const t1 = new Date(sunset)
   let ratio = 0
   if (tNow <= t0) ratio = 0
   else if (tNow >= t1) ratio = 1
@@ -50,14 +44,9 @@ function updateLight(now, sunrise, sunset) {
 
   const angle = Math.PI * (0.5 + ratio),
         r     = 5
-  directionalLight.position.set(
-    Math.cos(angle) * r,
-    Math.sin(angle) * r,
-    0
-  )
+  directionalLight.position.set(Math.cos(angle) * r, Math.sin(angle) * r, 0)
 }
 
-// ========== 視窗/滑鼠 ==========
 function onWindowResize() {
   const w = window.innerWidth
   const h = window.innerHeight
@@ -81,14 +70,14 @@ function checkHover() {
     const obj = hits[0].object
     const name = obj.name
     const meta = obj.userData?.meta || ''
-
     const world = obj.getWorldPosition(new THREE.Vector3())
     const proj  = world.clone().project(camera)
+
     infoPosition.value = {
       x: (proj.x + 1) / 2 * window.innerWidth,
       y: (1 - proj.y) / 2 * window.innerHeight
     }
-    
+
     const entry = circleDataMap.get(name)
     if (entry && props.sensorData?.[name] !== undefined) {
       entry.circle.userData.meta = `Value: ${props.sensorData[name]}`
@@ -100,13 +89,27 @@ function checkHover() {
       x: infoPosition.value.x,
       y: infoPosition.value.y
     }
-    } else {
-    hoveredObject.value = null
-    }
-}
-  
 
-// ========== 畫綠圈 + 加上標籤 ==========
+    // ✅ 判斷資料來源
+    if (name.startsWith('Sensor_')) {
+      emit('sensor-hover', {
+        id: name.toLowerCase(),
+        x: infoPosition.value.x,
+        y: infoPosition.value.y
+      })
+    } else if (name.startsWith('Robot_')) {
+      emit('robot-hover', {
+        id: name.toLowerCase(),
+        x: infoPosition.value.x,
+        y: infoPosition.value.y
+      })
+    }
+
+  } else {
+    hoveredObject.value = null
+  }
+}
+
 function drawNamedCircle(position, name) {
   const circleGeo = new THREE.CircleGeometry(0.1, 64).toNonIndexed()
   const dashedMat = new THREE.LineDashedMaterial({
@@ -127,23 +130,18 @@ function drawNamedCircle(position, name) {
   const div = document.createElement('div')
   div.className = 'label'
   div.textContent = name
-
   const label = new CSS2DObject(div)
   label.position.set(0, 0.15, 0)
   circle.add(label)
-
-  console.log(`${name} added at:`, position)
 }
 
-// ========== 初始化場景 ==========
 async function initScene() {
   await nextTick()
   const container = glContainer.value
   if (!container) throw new Error('glContainer not found')
 
-  // 場景基礎元件
-  scene    = new THREE.Scene()
-  camera   = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 2000)
+  scene = new THREE.Scene()
+  camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 2000)
   camera.position.set(0, 2, 5)
 
   renderer = new THREE.WebGLRenderer({ antialias: true })
@@ -166,33 +164,31 @@ async function initScene() {
   scene.add(new THREE.AmbientLight(0xffffff, 0.3))
 
   raycaster = new THREE.Raycaster()
-  mouse     = new THREE.Vector2()
+  mouse = new THREE.Vector2()
   renderer.domElement.addEventListener('mousemove', onMouseMove)
 
-  // 載入模型與標記
   new GLTFLoader().load(
     'models/scene.glb',
     gltf => {
       const model = gltf.scene
       model.rotation.x = Math.PI / 3
-      model.rotation.y = -Math.PI /2
+      model.rotation.y = -Math.PI / 2
       scene.add(model)
       scene.add(axes)
 
       const points = [
-        { name: 'Robot_1', position: new THREE.Vector3(1.1878, 0.0423, 2.4691) },
-        { name: 'Robot_2', position: new THREE.Vector3(3.2301, 0.5295, 2.5110) },
-        { name: 'Robot_3', position: new THREE.Vector3(5.1673, 1.8085, 2.3473) },
-        { name: 'Robot_4', position: new THREE.Vector3(5.2666, 0.7334, 2.0687) },
+        { name: 'robot_1', position: new THREE.Vector3(1.1878, 0.0423, 2.4691) },
+        { name: 'robot_2', position: new THREE.Vector3(3.2301, 0.5295, 2.5110) },
+        { name: 'robot_3', position: new THREE.Vector3(5.1673, 1.8085, 2.3473) },
+        { name: 'robot_4', position: new THREE.Vector3(5.2666, 0.7334, 2.0687) },
         { name: 'Sensor_1', position: new THREE.Vector3(0.3332, -0.0053, 2.5154) },
         { name: 'Sensor_2', position: new THREE.Vector3(0.0189, 0.1707, 2.0220) }
       ]
-
       points.forEach(p => drawNamedCircle(p.position, p.name))
 
       const box = new THREE.Box3().setFromObject(model)
       const center = new THREE.Vector3()
-      const size   = new THREE.Vector3()
+      const size = new THREE.Vector3()
       box.getCenter(center)
       box.getSize(size)
 
@@ -209,7 +205,6 @@ async function initScene() {
     err => console.error(err)
   )
 
-  // 日照資料
   const sun = await fetchSunData()
   updateLight(sun.now, sun.sunrise, sun.sunset)
 
@@ -219,13 +214,12 @@ async function initScene() {
     updateLight(data.now, data.sunrise, data.sunset)
   }, 60_000)
 
-
   ;(function animate() {
     frameId = requestAnimationFrame(animate)
     controls.update()
     checkHover()
     renderer.render(scene, camera)
-    labelRenderer.render(scene, camera)  // ← 正確放這
+    labelRenderer.render(scene, camera)
   })()
 }
 
@@ -241,6 +235,12 @@ onBeforeUnmount(() => {
 })
 </script>
 
+<template>
+  <div ref="glContainer" class="three-container">
+    <HoverInfo :hoverData="hoveredObject" :chartRecords="props.chartRecords" />
+  </div>
+</template>
+
 <style scoped>
 .three-container {
   position: relative;
@@ -250,25 +250,11 @@ onBeforeUnmount(() => {
   background: #f0f0f0;
   overflow: hidden;
 }
-
 .three-container canvas {
   display: block;
   width: 100% !important;
   height: 100% !important;
 }
-
-.hover-info {
-  position: absolute;
-  background: rgba(0, 0, 0, 0.7);
-  color: #fff;
-  padding: 5px 10px;
-  border-radius: 4px;
-  font-size: 14px;
-  pointer-events: none;
-  transform: translate(-50%, -100%);
-  z-index: 1000;
-}
-
 .label {
   background: rgba(0, 0, 0, 0.6);
   color: lime;
@@ -279,6 +265,12 @@ onBeforeUnmount(() => {
   white-space: nowrap;
 }
 </style>
+
+
+
+
+
+
 
 
 

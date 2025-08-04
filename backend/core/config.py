@@ -3,6 +3,8 @@ import json
 import os
 from pydantic_settings import BaseSettings
 from pydantic import Extra
+from kafka.admin import KafkaAdminClient, NewTopic
+from kafka.errors import TopicAlreadyExistsError
 
 Telegram_API_ID=22468436
 Telegram_API_HASH="cc037d52e7b58664b9140e82f8aa73b5"
@@ -52,8 +54,31 @@ def get_cloud_producer():
         value_serializer=lambda v: v.encode('utf-8') if isinstance(v, str) else v,
     )
 
-#BOOTSTRAP_SERVERS='pkc-l7j7w.asia-east1.gcp.confluent.cloud:9092'  # 替換為您的 Bootstrap Server
-#API_KEY='XOYQOIR2SGXPDPKG'  # 替換為您的 API Key
-#API_SECRET='WxPIE0xCxQkM/NUkBqn60RLSUmNKhJeYjRJexQE7UVsjMbpfS2m9cPFLij9vN04O'  # 替換為您的 API Secret
-#KAFKA_TOPIC=robotic_arm_data
-#KAFKA_GROUP=robotic_arm_consumer_group
+
+ROBOT_IDS = [f"robot_{i}" for i in range(1, 5)]
+TABLES = ["left_arm", "right_arm", "nicla"]
+# Kafka broker URL
+KAFKA_BOOTSTRAP = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "localhost:9092")
+
+def create_robot_topics():
+    admin_client = KafkaAdminClient(
+        bootstrap_servers=KAFKA_BOOTSTRAP,
+        client_id="topic_initializer"
+    )
+
+    topic_names = [f"robot.{robot}.{typ}" for robot in ROBOT_IDS for typ in TABLES]
+    existing_topics = admin_client.list_topics()
+
+    new_topics = []
+    for topic in topic_names:
+        if topic not in existing_topics:
+            new_topics.append(NewTopic(name=topic, num_partitions=1, replication_factor=1))
+            print(f"🆕 Preparing to create topic: {topic}")
+        else:
+            print(f"✅ Topic already exists: {topic}")
+
+    if new_topics:
+        admin_client.create_topics(new_topics=new_topics, validate_only=False)
+        print("🎉 All missing topics created successfully!")
+    else:
+        print("👌 All topics already exist. Nothing to create.")

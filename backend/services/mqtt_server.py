@@ -7,12 +7,18 @@ from backend.core.config import (MQTT_BROKER, MQTT_PORT, TOPIC_AC, TOPIC_DEH, TO
 from kafka import KafkaProducer
 import json,os
 import time
+from copy import deepcopy
+from pymongo import MongoClient
 from dotenv import load_dotenv
 from backend.core.config import  get_local_producer,get_cloud_producer
 
 load_dotenv()
 KAFKA_SERVER = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "localhost:9092")
 KAFKA_TOPIC  = os.getenv("KAFKA_MQTT_TOPIC","sensor")
+
+mongo_client = MongoClient("mongodb://localhost:27017/")
+db = mongo_client["iot_data"]
+collection = db["sensor_records"]
 
 def send_kafka(topic, payload):
     data = json.dumps(payload).encode("utf-8") if not isinstance(payload, bytes) else payload
@@ -111,6 +117,8 @@ async def start_background_mqtt_server():
                     "dehumidifier": "ON" if deh_on else "OFF"
                 }
             }
+            payload_for_mongo = deepcopy(kafka_payload)
+            collection.insert_one(payload_for_mongo)
             send_kafka(KAFKA_TOPIC, kafka_payload)
             mqtt_client.publish(TOPIC_TEMP, f"{temp:.2f}", qos=0, retain=True)
             mqtt_client.publish(TOPIC_HUM, f"{hum:.2f}", qos=0, retain=True)
