@@ -15,4 +15,10 @@ const selectModule = (mod) => selectedModule.value = mod
 const dataToShow = computed(() => props.records[selectedModule.value] || [])
 </script>
 
+
+
+
+
+
+  
   

@@ -5,6 +5,8 @@ from pydantic_settings import BaseSettings
 from pydantic import Extra
 from kafka.admin import KafkaAdminClient, NewTopic
 from kafka.errors import TopicAlreadyExistsError
+from psycopg2.pool import SimpleConnectionPool
+
 
 Telegram_API_ID=22468436
 Telegram_API_HASH="cc037d52e7b58664b9140e82f8aa73b5"
@@ -82,3 +84,19 @@ def create_robot_topics():
         print("🎉 All missing topics created successfully!")
     else:
         print("👌 All topics already exist. Nothing to create.")
+
+
+
+pools = {
+    str(i): SimpleConnectionPool(
+        1, 5,
+        dbname=f"robot_{i}",
+        user="postgres",
+        password="root",
+        host="localhost",
+        port="5432"
+    ) for i in range(1, 5)
+}
+print("[Init] PostgreSQL pools 建立完成")
+
+

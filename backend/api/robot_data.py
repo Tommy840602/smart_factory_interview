@@ -2,7 +2,7 @@ from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from backend.schemas.robot import register_ws_client,unregister_ws_client
 import asyncio
 
-robot_router = APIRouter()
+robot_router = APIRouter(tags=["Robot"])
 
 
 @robot_router.websocket("/ws/opcua/{robot_id}/{typ}")

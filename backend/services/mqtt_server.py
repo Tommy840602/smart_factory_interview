@@ -1,11 +1,12 @@
 import threading,asyncio
-import time
+import datetime
 import logging
 import numpy as np
 import paho.mqtt.client as mqtt
 from backend.core.config import (MQTT_BROKER, MQTT_PORT, TOPIC_AC, TOPIC_DEH, TOPIC_HUM, TOPIC_TEMP)
 from kafka import KafkaProducer
 import json,os
+from zoneinfo import ZoneInfo
 import time
 from copy import deepcopy
 from pymongo import MongoClient
@@ -20,8 +21,16 @@ mongo_client = MongoClient("mongodb://localhost:27017/")
 db = mongo_client["iot_data"]
 collection = db["sensor_records"]
 
+def json_serializer(obj):
+    if isinstance(obj, (datetime.datetime, datetime.date)):
+        return obj.isoformat()
+    raise TypeError(f"Type {type(obj)} not serializable")
+
 def send_kafka(topic, payload):
-    data = json.dumps(payload).encode("utf-8") if not isinstance(payload, bytes) else payload
+    data = (
+        json.dumps(payload, default=json_serializer).encode("utf-8")
+        if not isinstance(payload, bytes) else payload
+    )
     local = get_local_producer()
     cloud = get_cloud_producer()
     if local:
@@ -111,6 +120,7 @@ async def start_background_mqtt_server():
             kafka_payload = {
                 "source": "mqtt",
                 "payload": {
+                    "timestamp": datetime.datetime.now(ZoneInfo("Asia/Taipei")).isoformat(),
                     "temperature": round(temp, 2),
                     "humidity": round(hum, 2),
                     "ac": "ON" if ac_on else "OFF",
