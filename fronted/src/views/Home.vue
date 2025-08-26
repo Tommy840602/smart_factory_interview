@@ -2,8 +2,8 @@
   <div class="home-container">
     <div class="section"><Power /></div>
     <div class="section"><Weather /></div>
+    <div class="section"><Earthquake /></div>
     <div class="section"><Ups /></div>
-
     <div class="section three-section opuca-section">
       <!-- Three.js 主視覺 -->
       <ThreeScene
@@ -53,7 +53,7 @@ import Power from '@/components/Power.vue'
 import Ups from '@/components/Ups.vue'
 import Weather from '@/components/Weather.vue'
 import Classify from '@/components/Classify.vue'
-
+import Earthquake from '@/components/Earthquake.vue'
 import ThreeScene from '@/components/ThreeScene.vue'
 import HoverInfo from '@/components/HoverInfo.vue'
 import HoverRobot from '@/components/HoverRobot.vue'

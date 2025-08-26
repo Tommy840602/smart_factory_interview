@@ -25,10 +25,6 @@ const props = defineProps({
   chartRecords: Object
 })
 
-async function fetchSunData() {
-  const res = await fetch('http://localhost:8000/api/suntime')
-  return res.json()
-}
 
 function updateLight(now, sunrise, sunset) {
   const tNow = new Date(now)
@@ -177,10 +173,10 @@ async function initScene() {
       scene.add(axes)
 
       const points = [
-        { name: 'robot_1', position: new THREE.Vector3(1.1878, 0.0423, 2.4691) },
-        { name: 'robot_2', position: new THREE.Vector3(3.2301, 0.5295, 2.5110) },
-        { name: 'robot_3', position: new THREE.Vector3(5.1673, 1.8085, 2.3473) },
-        { name: 'robot_4', position: new THREE.Vector3(5.2666, 0.7334, 2.0687) },
+        { name: 'Robot_1', position: new THREE.Vector3(1.1878, 0.0423, 2.4691) },
+        { name: 'Robot_2', position: new THREE.Vector3(3.2301, 0.5295, 2.5110) },
+        { name: 'Robot_3', position: new THREE.Vector3(5.1673, 1.8085, 2.3473) },
+        { name: 'Robot_4', position: new THREE.Vector3(5.2666, 0.7334, 2.0687) },
         { name: 'Sensor_1', position: new THREE.Vector3(0.3332, -0.0053, 2.5154) },
         { name: 'Sensor_2', position: new THREE.Vector3(0.0189, 0.1707, 2.0220) }
       ]
@@ -204,9 +200,6 @@ async function initScene() {
     xhr => console.log(`Loading ${(xhr.loaded / xhr.total * 100) | 0}%`),
     err => console.error(err)
   )
-
-  const sun = await fetchSunData()
-  updateLight(sun.now, sun.sunrise, sun.sunset)
 
   window.addEventListener('resize', onWindowResize)
   sunInterval = setInterval(async () => {

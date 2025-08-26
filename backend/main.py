@@ -7,7 +7,6 @@ from backend.api.power_supply import power_router
 from backend.api.ups_info import ups_router
 from backend.api.get_weather import weather_router
 from backend.api.k_map import kmap_router
-from backend.api.get_earthquake import earthquake_router
 from backend.api.classify_image import grpc_router
 from backend.api.robot_data import robot_router
 from contextlib import asynccontextmanager
@@ -17,8 +16,8 @@ from backend.services.grpc_server import start_background_grpc_server
 from backend.services.mqtt_server import start_background_mqtt_server
 from backend.core.config import create_robot_topics
 from backend.services.sparkplug_server import start_all
-from backend.services.db_server import TOPICS,consume_and_insert
-
+from backend.services.db_server import start_workers
+from backend.core.sparkplug_subscriber_ws import subscriber_ws
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -35,15 +34,11 @@ async def lifespan(app: FastAPI):
     asyncio.create_task(start_background_mqtt_server())
 
     # === 整合 Sparkplug 與 DB Server ===
-    db_thread = threading.Thread(target=start_all, daemon=True)
-    db_thread.start()
-    print("[Init] PostgreSQL → GCS Export 啟動完成")
-
+    start_all()
     # 啟動 Kafka Consumer workers
-    for topic in TOPICS:
-        t = threading.Thread(target=consume_and_insert, args=(topic,), daemon=True)
-        t.start()
-        print(f"[Init] Kafka Consumer 啟動: {topic}")
+    start_workers()
+    # === Sparkplug Subscriber 啟動 ===
+    subscriber_ws()
     # 給一點時間啟動
     await asyncio.sleep(1)
     try:
@@ -68,7 +63,7 @@ app.include_router(ups_router, prefix="/api")
 app.include_router(power_router, prefix="/api")
 app.include_router(weather_router, prefix="/api")
 app.include_router(kmap_router, prefix="/api")
-app.include_router(earthquake_router, prefix="/api")
+#app.include_router(earthquake_router, prefix="/api")
 app.include_router(grpc_router, prefix="/api")
 app.include_router(robot_router)
 #print("\n🚀 Registered routes:")

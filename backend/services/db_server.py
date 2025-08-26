@@ -1,10 +1,10 @@
 from kafka import KafkaConsumer
 from psycopg2.pool import SimpleConnectionPool
-import psycopg2
+import psycopg2,pytz
 import pandas as pd
 from google.cloud import storage
 from datetime import datetime
-import threading, time, json, io
+import threading, time, json, io, os
 from dateutil import parser
 from datetime import datetime, timezone
 
@@ -67,6 +67,21 @@ FIELD_MAPPING = {
 
 def normalize_keys(data: dict) -> dict:
     return {FIELD_MAPPING.get(k, k): v for k, v in data.items()}
+
+# ===== Checkpoint 管理 =====
+CHECKPOINT_FILE = "checkpoints.json"
+
+def load_checkpoints():
+    if not os.path.exists(CHECKPOINT_FILE):
+        return {}
+    with open(CHECKPOINT_FILE, "r") as f:
+        return json.load(f)
+
+def save_checkpoints(cp):
+    with open(CHECKPOINT_FILE, "w") as f:
+        json.dump(cp, f, indent=2)
+
+checkpoints = load_checkpoints()
 
 # ===== Consumer Worker =====
 def consume_and_insert(topic: str):
@@ -138,83 +153,76 @@ def consume_and_insert(topic: str):
             cur.close()
             pools[robot_id].putconn(conn)
 
-
 # ===== Export Worker =====
-def query_postgres(robot_id: str, table: str) -> pd.DataFrame:
-    query = f"""
-        SELECT *
-        FROM {table}
-        WHERE timestamp >= NOW() - INTERVAL '5 minutes'
-    """
+def query_postgres(robot_id: str, table: str, last_ts: str) -> pd.DataFrame:
     conn = pools[robot_id].getconn()
     try:
-        df = pd.read_sql(query, conn)
+        if last_ts:
+            query = f"SELECT * FROM {table} WHERE timestamp > %s ORDER BY timestamp ASC"
+            df = pd.read_sql(query, conn, params=(last_ts,))
+        else:
+            query = f"SELECT * FROM {table} ORDER BY timestamp ASC"
+            df = pd.read_sql(query, conn)
     finally:
         pools[robot_id].putconn(conn)
     return df
 
-def upload_chunk(df: pd.DataFrame, robot_id: str, table: str, part_idx: int):
+def upload_chunk(df: pd.DataFrame, robot_id: str, table: str):
+    # 確保 timestamp 欄位有 timezone-aware
+    if df["timestamp"].dtype == "datetime64[ns]":  
+        df["timestamp"] = df["timestamp"].dt.tz_localize("UTC")  # 若來源無 tz，先假設 UTC
+
+    start_ts = df["timestamp"].min().astimezone(pytz.timezone("Asia/Taipei"))
+    end_ts   = df["timestamp"].max().astimezone(pytz.timezone("Asia/Taipei"))
+
+    # 帶時區偏移（+08:00 ➝ +0800）
+    start_str = start_ts.strftime("%Y%m%dT%H%M%S")
+    end_str   = end_ts.strftime("%Y%m%dT%H%M%S")
+
+    filename = f"{start_str}_{end_str}.parquet"
+
     buffer = io.BytesIO()
     df.to_parquet(buffer, engine="pyarrow", index=False)
-    buffer_size = buffer.getbuffer().nbytes / (1024 * 1024)
     buffer.seek(0)
-    filename = f"part_{part_idx}.parquet"
+
     blob = bucket.blob(f"robot_{robot_id}/{table}/dt={datetime.now().date()}/{filename}")
     blob.upload_from_file(buffer, content_type="application/octet-stream")
 
-    print(f"✅ Uploaded {filename} ({buffer_size:.2f} MB, rows={len(df)})")
+    print(f"✅ Uploaded {filename} rows={len(df)}")
+
+    key = f"robot_{robot_id}_{table}"
+    checkpoints[key] = end_str
+    save_checkpoints(checkpoints)
 
 def poll_postgres():
-    # 🔹 每個 DB × Table 都要有自己的 buffer & 狀態
-    buffers = {f"robot_{i}_{t}": pd.DataFrame() for i in range(1, 5) for t in TABLES}
-    part_idxs = {f"robot_{i}_{t}": 1 for i in range(1, 5) for t in TABLES}
-    last_upload_times = {f"robot_{i}_{t}": time.time() for i in range(1, 5) for t in TABLES}
-    current_day = datetime.now().date()
-
     while True:
         for robot_id in pools.keys():
             for table in TABLES:
                 key = f"robot_{robot_id}_{table}"
-                df = query_postgres(robot_id, table)
+                last_ts = checkpoints.get(key)
+
+                df = query_postgres(robot_id, table, last_ts)
                 if not df.empty:
-                    buffers[key] = pd.concat([buffers[key], df], ignore_index=True)
+                    upload_chunk(df, robot_id, table)
 
-                # 檢查跨天 reset
-                today = datetime.now().date()
-                if today != current_day:
-                    print(f"📅 新的一天 {today}，reset part_idx=1 for all tables")
-                    current_day = today
-                    part_idxs = {k: 1 for k in part_idxs.keys()}
+        time.sleep(INTERVAL)
 
-                # 檢查大小/時間條件
-                size_mb = buffers[key].memory_usage(deep=True).sum() / (1024 * 1024)
-                elapsed = time.time() - last_upload_times[key]
+def start_workers():
+    threads = []
 
-                if (size_mb >= MAX_MB) or (elapsed >= INTERVAL and not buffers[key].empty):
-                    upload_chunk(buffers[key], robot_id, table, part_idxs[key])
-                    buffers[key] = pd.DataFrame()
-                    part_idxs[key] += 1
-                    last_upload_times[key] = time.time()
-
-        time.sleep(10)
-
-if __name__ == "__main__":
-    # 啟動 DB → GCS 上傳的背景執行緒
     db_thread = threading.Thread(target=poll_postgres, daemon=True)
     db_thread.start()
-    print("[Init] PostgreSQL → GCS Export 啟動完成")
+    threads.append(db_thread)
+    print("[Init] PostgreSQL → GCS Export 啟動完成 (checkpoint 版)")
 
-    # 啟動 Kafka Consumer threads
-    consumer_threads = []
     for topic in TOPICS:
         t = threading.Thread(target=consume_and_insert, args=(topic,), daemon=True)
         t.start()
-        consumer_threads.append(t)
+        threads.append(t)
         print(f"[Init] Consumer thread 啟動: {topic}")
 
-    # main thread 等待子執行緒
-    for t in consumer_threads:
-        t.join()
+    return threads
+
 
 
 

@@ -179,16 +179,12 @@ def stop_all(*_):
         mqtt_client.disconnect()
     except Exception:
         pass
+    for t in threads:
+        t.join(timeout=2)   # 等待 thread 收尾
     print("[Runner] shutdown complete.")
-    os._exit(0)
+    sys.exit(0)
 
 
-if __name__ == "__main__":
-    signal.signal(signal.SIGINT, stop_all)
-    signal.signal(signal.SIGTERM, stop_all)
-    start_all()
-    while True:
-        time.sleep(1)
 
 
 

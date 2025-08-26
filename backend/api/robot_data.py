@@ -4,21 +4,16 @@ import asyncio
 
 robot_router = APIRouter(tags=["Robot"])
 
+ws_clients: dict[str, list[WebSocket]] = {}
 
-@robot_router.websocket("/ws/opcua/{robot_id}/{typ}")
-async def robot_module_ws(websocket: WebSocket, robot_id: str, typ: str):
-    topic = f"robot.{robot_id}.{typ}"  # 範例: robot.robot_1.nicla
+@robot_router.websocket("/ws/robot/{robot}/{typ}")
+async def websocket_endpoint(websocket: WebSocket, robot: str, typ: str):
+    """每個 robot/type 一個 WebSocket channel"""
     await websocket.accept()
-    register_ws_client(topic, websocket)
-    print(f"✅ WebSocket connected: {topic}")
+    path = f"{robot}/{typ}"
+    ws_clients.setdefault(path, []).append(websocket)
     try:
         while True:
-            await asyncio.sleep(1000)  # 或維持心跳、無需 loop 發送（由 broadcast 推資料）
+            await websocket.receive_text()  # keep alive
     except WebSocketDisconnect:
-        unregister_ws_client(topic, websocket)
-        print(f"❌ Disconnected: {topic}")
-
-
-
-
-
+        ws_clients[path].remove(websocket)

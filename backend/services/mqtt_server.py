@@ -1,36 +1,43 @@
-import threading,asyncio
+import threading, asyncio
 import datetime
 import logging
 import numpy as np
 import paho.mqtt.client as mqtt
 from backend.core.config import (MQTT_BROKER, MQTT_PORT, TOPIC_AC, TOPIC_DEH, TOPIC_HUM, TOPIC_TEMP)
 from kafka import KafkaProducer
-import json,os
+import json, os
 from zoneinfo import ZoneInfo
-import time
 from copy import deepcopy
-from pymongo import MongoClient
 from dotenv import load_dotenv
-from backend.core.config import  get_local_producer,get_cloud_producer
+from backend.core.config import get_local_producer, get_cloud_producer
+from google.cloud import storage
+import pandas as pd
+import pyarrow as pa
+from pymongo import MongoClient   # ✅ 熱儲存
 
+# ====== 環境設定 ======
 load_dotenv()
 KAFKA_SERVER = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "localhost:9092")
-KAFKA_TOPIC  = os.getenv("KAFKA_MQTT_TOPIC","sensor")
+KAFKA_TOPIC  = os.getenv("KAFKA_MQTT_TOPIC", "sensor")
 
+# ====== 初始化 MongoDB (熱) ======
 mongo_client = MongoClient("mongodb://localhost:27017/")
 db = mongo_client["iot_data"]
 collection = db["sensor_records"]
 
+# ====== 初始化 GCS (冷) ======
+gcs = storage.Client.from_service_account_json("plasma-creek-438010-s0-bbae490f4314.json")
+bucket = gcs.bucket("sensor_cold")
+
+# ====== JSON 序列化器 ======
 def json_serializer(obj):
     if isinstance(obj, (datetime.datetime, datetime.date)):
         return obj.isoformat()
     raise TypeError(f"Type {type(obj)} not serializable")
 
+# ====== Kafka 發送 ======
 def send_kafka(topic, payload):
-    data = (
-        json.dumps(payload, default=json_serializer).encode("utf-8")
-        if not isinstance(payload, bytes) else payload
-    )
+    data = json.dumps(payload, default=json_serializer).encode("utf-8")
     local = get_local_producer()
     cloud = get_cloud_producer()
     if local:
@@ -44,27 +51,15 @@ def send_kafka(topic, payload):
         except Exception as e:
             print(f"[CloudKafka] 發送失敗：{e}")
 
-# 温湿度上下限
-TEMP_LO, TEMP_HI = 24.0, 26.0
-HUM_LO, HUM_HI   = 45.0, 55.0
-
+# ====== OU 模擬器 ======
 def simulate_ou(dt, steps, C, y0, theta, sigma):
-    """
-    Ornstein–Uhlenbeck 过程模拟，支持自定义初始值
-    dt: 时间步长（秒）
-    steps: 总步数
-    C: 平均回归值
-    y0: 初始值
-    theta: 回归速度 (1/τ)
-    sigma: 噪声强度
-    返回长度为 steps 的序列
-    """
     y = np.zeros(steps)
     y[0] = y0
     for i in range(1, steps):
         y[i] = y[i-1] + theta * (C - y[i-1]) * dt + sigma * np.sqrt(dt) * np.random.randn()
     return y
 
+# ====== Logging ======
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s %(levelname)s %(message)s",
@@ -72,6 +67,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# ====== MQTT callbacks ======
 def on_connect(client, userdata, flags, rc):
     if rc == 0:
         logger.info(f"✅ 连接到 MQTT Broker: {MQTT_BROKER}:{MQTT_PORT}")
@@ -88,52 +84,105 @@ def on_disconnect(client, userdata, rc):
 def on_publish(client, userdata, mid):
     logger.debug(f"已发布消息，mid={mid}")
 
+# ====== 冷儲存 (GCS 批次) ======
+buffer = []
+current_hour = None
+lock = threading.Lock()
+
+PARQUET_SCHEMA = pa.schema([
+    ("timestamp", pa.string()),
+    ("temperature", pa.float64()),
+    ("humidity", pa.float64()),
+    ("ac", pa.string()),
+    ("dehumidifier", pa.string())
+])
+
+def flush_buffer():
+    """將 buffer 轉為 Parquet 並上傳到 GCS (冷儲存)"""
+    global buffer, current_hour
+    if not buffer:
+        return
+
+    ts = datetime.datetime.now(ZoneInfo("Asia/Taipei"))
+    date_str = ts.strftime("%Y%m%d")
+    start_hour = current_hour
+    end_hour = (current_hour + 1) % 24
+
+    file_name = f"{start_hour:02d}00_to_{end_hour:02d}00.parquet"
+    blob_name = f"mqtt_records/dt={date_str}/{file_name}"
+    blob = bucket.blob(blob_name)
+
+    df = pd.DataFrame([x["payload"] for x in buffer])
+    tmp_file = f"/tmp/{file_name}"
+    df.to_parquet(tmp_file, engine="pyarrow", index=False, schema=PARQUET_SCHEMA)
+
+    blob.upload_from_filename(tmp_file, content_type="application/octet-stream")
+
+    logger.info(f"☁️ (冷儲存) 批次上傳 {len(buffer)} 筆資料 → {blob_name}")
+    buffer = []
+
+# ====== 主迴圈 ======
 async def start_background_mqtt_server():
-    # 1. 初始化 MQTT 客户端
+    global buffer, current_hour
+
     mqtt_client = mqtt.Client()
     mqtt_client.on_connect    = on_connect
     mqtt_client.on_disconnect = on_disconnect
     mqtt_client.on_publish    = on_publish
-
     mqtt_client.connect(MQTT_BROKER, MQTT_PORT)
     mqtt_client.loop_start()
     logger.info("🔌 MQTT start")
 
-    # OU 参数，指定初始温度为 38°C，初始湿度为 90%
-    dt = 1.0           # 步长1秒
-    steps = 100000     # 总步数
+    dt = 1.0
+    steps = 100000
     temp_seq = simulate_ou(dt, steps, C=25.0, y0=38.0, theta=1/60, sigma=0.3)
     hum_seq  = simulate_ou(dt, steps, C=50.0, y0=90.0, theta=1/80, sigma=0.5)
 
     idx = 0
+    current_hour = datetime.datetime.now(ZoneInfo("Asia/Taipei")).hour
+
     try:
         while True:
+            now = datetime.datetime.now(ZoneInfo("Asia/Taipei"))
             temp = float(temp_seq[idx])
             hum  = float(hum_seq[idx])
             idx = (idx + 1) % steps
 
-            # 计算开关
-            ac_on  = temp < TEMP_LO or temp > TEMP_HI
-            deh_on = hum  < HUM_LO  or hum  > HUM_HI
+            ac_on  = temp < 24.0 or temp > 26.0
+            deh_on = hum  < 45.0 or hum  > 55.0
 
-            # 发布
             kafka_payload = {
                 "source": "mqtt",
                 "payload": {
-                    "timestamp": datetime.datetime.now(ZoneInfo("Asia/Taipei")).isoformat(),
+                    "timestamp": now.isoformat(),
                     "temperature": round(temp, 2),
                     "humidity": round(hum, 2),
                     "ac": "ON" if ac_on else "OFF",
                     "dehumidifier": "ON" if deh_on else "OFF"
                 }
             }
-            payload_for_mongo = deepcopy(kafka_payload)
-            collection.insert_one(payload_for_mongo)
+
+            # Kafka
             send_kafka(KAFKA_TOPIC, kafka_payload)
+
+            # MQTT
             mqtt_client.publish(TOPIC_TEMP, f"{temp:.2f}", qos=0, retain=True)
             mqtt_client.publish(TOPIC_HUM, f"{hum:.2f}", qos=0, retain=True)
             mqtt_client.publish(TOPIC_AC, "ON" if ac_on else "OFF", qos=0, retain=True)
             mqtt_client.publish(TOPIC_DEH, "ON" if deh_on else "OFF", qos=0, retain=True)
+
+            # 熱儲存 (MongoDB 即時存一筆)
+            collection.insert_one(deepcopy(kafka_payload))
+
+            # 冷儲存 (加入 Buffer)
+            with lock:
+                buffer.append(kafka_payload)
+
+            # 小時切換 → flush
+            if now.hour != current_hour:
+                with lock:
+                    flush_buffer()
+                current_hour = now.hour
 
             logger.info(
                 f"📡 發布 → temp={temp:.2f}, hum={hum:.2f}, "
@@ -142,9 +191,13 @@ async def start_background_mqtt_server():
             await asyncio.sleep(dt)
 
     finally:
-        logger.info("🛑 Stop MQTT")
+        with lock:
+            flush_buffer()
         mqtt_client.loop_stop()
         mqtt_client.disconnect()
+        logger.info("🛑 Stop MQTT")
+
+
 
 
 
