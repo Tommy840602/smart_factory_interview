@@ -16,7 +16,7 @@ const emit = defineEmits(['sensor-hover', 'robot-hover'])
 const axes = new THREE.AxesHelper(1.5)
 let scene, camera, renderer, labelRenderer,
     controls, directionalLight, raycaster, mouse,
-    frameId, sunInterval
+    frameId
 
 const circles = []
 const circleDataMap = new Map()
@@ -24,24 +24,6 @@ const props = defineProps({
   sensorData: Object,
   chartRecords: Object
 })
-
-
-function updateLight(now, sunrise, sunset) {
-  const tNow = new Date(now)
-  const t0 = new Date(sunrise)
-  const t1 = new Date(sunset)
-  let ratio = 0
-  if (tNow <= t0) ratio = 0
-  else if (tNow >= t1) ratio = 1
-  else ratio = (tNow - t0) / (t1 - t0)
-
-  directionalLight.intensity = 0.3 + (1 - ratio) * 0.7
-  directionalLight.color.setHSL(0.1 + ratio * 0.1, 0.8, 0.5)
-
-  const angle = Math.PI * (0.5 + ratio),
-        r     = 5
-  directionalLight.position.set(Math.cos(angle) * r, Math.sin(angle) * r, 0)
-}
 
 function onWindowResize() {
   const w = window.innerWidth
@@ -79,8 +61,10 @@ function checkHover() {
       entry.circle.userData.meta = `Value: ${props.sensorData[name]}`
     }
 
+    // ✅ 統一 hoverObject 結構
     hoveredObject.value = {
       name,
+      module: null,   // ✅ Robot 預設 null，交給 SceneWrapper2 補
       html: `<strong>${name}</strong><br>${meta}`,
       x: infoPosition.value.x,
       y: infoPosition.value.y
@@ -94,8 +78,11 @@ function checkHover() {
         y: infoPosition.value.y
       })
     } else if (name.startsWith('Robot_')) {
+      const robotId = name.toLowerCase()
       emit('robot-hover', {
-        id: name.toLowerCase(),
+        id: robotId,       // robot_3
+        name,              // "Robot_3"
+        module: 'nicla',      // 後續由 SceneWrapper2 再補
         x: infoPosition.value.x,
         y: infoPosition.value.y
       })
@@ -154,7 +141,8 @@ async function initScene() {
   controls = new OrbitControls(camera, renderer.domElement)
   controls.enableDamping = true
 
-  directionalLight = new THREE.DirectionalLight(0xffffff, 1)
+  // ✅ 固定光源
+  directionalLight = new THREE.DirectionalLight(0xffffff, 0.8)
   directionalLight.position.set(5, 5, 5)
   scene.add(directionalLight)
   scene.add(new THREE.AmbientLight(0xffffff, 0.3))
@@ -202,10 +190,6 @@ async function initScene() {
   )
 
   window.addEventListener('resize', onWindowResize)
-  sunInterval = setInterval(async () => {
-    const data = await fetchSunData()
-    updateLight(data.now, data.sunrise, data.sunset)
-  }, 60_000)
 
   ;(function animate() {
     frameId = requestAnimationFrame(animate)
@@ -222,9 +206,10 @@ onBeforeUnmount(() => {
   window.removeEventListener('resize', onWindowResize)
   renderer.domElement.removeEventListener('mousemove', onMouseMove)
   cancelAnimationFrame(frameId)
-  clearInterval(sunInterval)
   renderer.dispose()
   controls.dispose()
+  labelRenderer?.domElement.remove()
+  labelRenderer = null
 })
 </script>
 
@@ -248,9 +233,9 @@ onBeforeUnmount(() => {
   width: 100% !important;
   height: 100% !important;
 }
-.label {
+:deep(.label) {
   background: rgba(0, 0, 0, 0.6);
-  color: lime;
+  color: white;   /* ✅ 白色字更清楚 */
   padding: 2px 4px;
   border-radius: 4px;
   font-size: 12px;
@@ -258,6 +243,8 @@ onBeforeUnmount(() => {
   white-space: nowrap;
 }
 </style>
+
+
 
 
 

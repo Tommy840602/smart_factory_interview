@@ -1,15 +1,15 @@
 <template>
   <div class="p-4">
-    <h2 class="text-xl font-bold mb-4">📡 地震訊息</h2>
+    <h2 class="text-xl font-bold mb-4">Earthquake Message</h2>
 
-    <div v-if="loading">資料讀取中...</div>
+    <div v-if="loading">Loading...</div>
     <div v-else-if="error" class="text-red-600">{{ error }}</div>
 
     <div v-else>
       <div v-for="msg in messages" :key="msg.id" class="border rounded-lg p-3 mb-3 shadow">
         <!-- 用 formatDate 轉換 -->
         <p class="text-gray-500 text-sm">{{ formatDate(msg.date) }}</p>
-        <p class="font-semibold text-blue-600">來源: {{ msg.sender_name }}</p>
+        <p class="font-semibold text-blue-600">Source: {{ msg.sender_name }}</p>
         <pre class="whitespace-pre-wrap">{{ msg.text }}</pre>
       </div>
     </div>

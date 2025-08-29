@@ -2,7 +2,7 @@ import asyncio
 import json, os
 from kafka import KafkaConsumer
 from dotenv import load_dotenv
-from backend.schemas.robot import register_ws_client, unregister_ws_client, ws_clients
+from backend.schemas.ws_manager import register_ws_client, unregister_ws_client, ws_clients
 
 load_dotenv()
 KAFKA_SERVER = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "localhost:9092")

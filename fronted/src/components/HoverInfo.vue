@@ -1,11 +1,12 @@
 <template>
+  <!-- 只顯示 Sensor hover，不處理 Robot -->
   <div
-    v-if="hoverData?.name && (hoverData.name.includes('Sensor') || hoverData.name.includes('Robot'))"
+    v-if="hoverData?.name && hoverData.name.includes('Sensor')"
     class="chart-container"
-    :style="{ left: `${hoverData.x}px`, top: `${hoverData.y - 100}px` }"
+    :style="{ left: `${leftPos}px`, top: `${topPos}px` }"
   >
     <div class="chart-title">{{ latestLabel }}</div>
-    <canvas ref="chartCanvas" width="300" height="150"></canvas>
+    <canvas ref="chartCanvas" width="280" height="120"></canvas>
   </div>
 </template>
 
@@ -17,22 +18,25 @@ Chart.register(annotationPlugin)
 
 type RawRecord = { time: number; value: number }
 
-//const props = defineProps<{ hoverData: { name?: string; x: number; y: number }; chartRecords: Record<string, RawRecord[]> | Map<string, RawRecord[]> }>()
 const props = defineProps({
-hoverData: {
-  type: Object,
-  default: null
-},
-chartRecords: {
-  type: Object,
-  required: true
-}
+  hoverData: { type: Object, default: null },
+  chartRecords: { type: Object, required: true }
 })
 
 const chartCanvas = ref<HTMLCanvasElement | null>(null)
 let chartInstance: Chart | null = null
 
-// 讀資料時先兼容 Map 和 Object
+// --- 動態位置（避免超出視窗）
+const leftPos = computed(() => {
+  const x = props.hoverData?.x || 0
+  return Math.min(window.innerWidth - 320, x)
+})
+const topPos = computed(() => {
+  const y = props.hoverData?.y || 0
+  return Math.max(20, y - 160)
+})
+
+// --- 資料存取：兼容 Map / Object
 function getRaw(name?: string): RawRecord[] {
   if (!name || !props.chartRecords) return []
   if (props.chartRecords instanceof Map) {
@@ -43,18 +47,18 @@ function getRaw(name?: string): RawRecord[] {
 
 const latestLabel = computed(() => {
   const name = props.hoverData?.name
-  const raw = getRaw(name)
+  const raw = getRaw(name).slice(-30) // 只取最近 30 筆
   if (!name || !raw.length) return ''
   const lastVal = raw[raw.length - 1].value
 
   let type = ''
   let unit = ''
-  if (name.startsWith('Sensor_')) {
-    type = name === 'Sensor_1' ? 'Temperature' : 'Humidity'
-    unit = name === 'Sensor_2' ? '%' : '°C'
-  } else if (name.startsWith('Robot_')) {
-    type = 'Robot Data'
-    unit = ''
+  if (name === 'Sensor_1') {
+    type = 'Temperature'
+    unit = '°C'
+  } else if (name === 'Sensor_2') {
+    type = 'Humidity'
+    unit = '%'
   }
 
   return `${name}${type ? ` (${type})` : ''}: ${
@@ -64,26 +68,24 @@ const latestLabel = computed(() => {
 
 function drawChart() {
   const name = props.hoverData?.name
-  const raw = getRaw(name)
+  const raw = getRaw(name).slice(-30)
   if (!name || !raw.length || !chartCanvas.value) return
 
   const dataPoints = raw
     .map(r => ({ time: new Date(r.time), v: r.value }))
     .filter(dp => !isNaN(dp.v))
-    .sort((a, b) => a.time.getTime() - b.time.getTime())
+
   if (!dataPoints.length) return
 
   const labels = dataPoints.map(dp => dp.time.toLocaleTimeString())
   const values = dataPoints.map(dp => dp.v)
+
   const mean = values.reduce((a, b) => a + b, 0) / values.length
   const std = Math.sqrt(values.reduce((a, b) => a + (b - mean) ** 2, 0) / values.length)
   const LCL = mean - 3 * std
   const UCL = mean + 3 * std
 
-  if (chartInstance) {
-    chartInstance.destroy()
-    chartCanvas.value.getContext('2d')?.clearRect(0, 0, chartCanvas.value.width, chartCanvas.value.height)
-  }
+  if (chartInstance) chartInstance.destroy()
 
   chartInstance = new Chart(chartCanvas.value.getContext('2d')!, {
     type: 'line',
@@ -91,11 +93,7 @@ function drawChart() {
       labels,
       datasets: [
         {
-          label: name.startsWith('Sensor_')
-            ? name === 'Sensor_1'
-              ? 'Temperature (°C)'
-              : 'Humidity (%)'
-            : name,
+          label: name === 'Sensor_1' ? 'Temperature (°C)' : 'Humidity (%)',
           data: values,
           tension: 0.25,
           pointRadius: values.map(v => (v > UCL || v < LCL ? 4 : 2)),
@@ -107,8 +105,7 @@ function drawChart() {
       responsive: false,
       animation: false,
       scales: {
-        y: { min: Math.min(LCL, ...values) - 1, max: Math.max(UCL, ...values) + 1 },
-        x: {}
+        y: { min: Math.min(LCL, ...values) - 1, max: Math.max(UCL, ...values) + 1 }
       },
       plugins: {
         legend: { display: false },
@@ -124,40 +121,33 @@ function drawChart() {
   })
 }
 
-watch(
-  () => props.hoverData?.name,
-  () => drawChart()
-)
-
-watch(
-  () => getRaw(props.hoverData?.name),
-  () => drawChart(),
-  { deep: true }
-)
+watch(() => props.hoverData?.name, () => drawChart())
+watch(() => getRaw(props.hoverData?.name), () => drawChart(), { deep: true })
 </script>
 
 <style scoped>
 .chart-container {
   position: absolute;
-  background: rgba(255, 255, 255, 0.85);
+  background: rgba(0, 0, 0, 0.85);
+  color: white;
   border-radius: 6px;
-  padding: 8px;
-  max-width: 320px;
-  max-height: 200px;
+  padding: 6px;
+  max-width: 300px;
+  max-height: 180px;
   overflow: hidden;
-  box-shadow: 0 0 12px rgba(0, 0, 0, 0.2);
-  border: 1px solid rgba(0, 0, 0, 0.05);
+  box-shadow: 0 0 8px rgba(0, 0, 0, 0.3);
   z-index: 2000;
   transform: translate(-50%, 0);
 }
 
 .chart-title {
-  font-weight: bold;
+  font-weight: 600;
   margin-bottom: 4px;
   text-align: center;
-  font-size: 14px;
+  font-size: 13px;
 }
 </style>
+
 
 
 

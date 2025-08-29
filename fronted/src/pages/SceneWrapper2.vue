@@ -7,20 +7,18 @@
 <script setup>
 import { ref, onMounted, onBeforeUnmount } from 'vue'
 
-// 傳送給父層事件：資料更新、圖表更新、hover
 const emit = defineEmits(['robot-update', 'chart-update', 'robot-hover'])
 
-// 機器人 ID 與子模組類型
 const ROBOT_IDS = ['robot_1', 'robot_2', 'robot_3', 'robot_4']
 const TYPES = ['nicla', 'left_arm', 'right_arm']
 const MAX_RECORDS = 30
-const WS_BASE = 'ws://localhost:8000/ws/opcua'
+const WS_BASE = 'ws://localhost:8000/ws/robot'
 
-const robotData = ref({})      // ex: robot_1_left_arm
-const robotCharts = ref({})    // ex: robot_2_nicla
-const wsClients = ref({})      // 儲存各 WebSocket 實例
+const robotData = ref({})
+const robotCharts = ref({})
+const wsClients = ref({})
 
-// 新增即時圖表記錄
+// --- 新增即時圖表記錄 ---
 function addChart(key, val) {
   if (!robotCharts.value[key]) robotCharts.value[key] = []
   const records = robotCharts.value[key]
@@ -29,27 +27,41 @@ function addChart(key, val) {
   emit('chart-update', { name: key, value: val })
 }
 
-// 建立 WebSocket 連線（分流：robot_id + type）
+// --- 建立 WebSocket ---
 function initWS(robotId, typ) {
   const key = `${robotId}_${typ}`
   if (wsClients.value[key]) return
 
+  console.log(`🔗 Connecting WS: ${WS_BASE}/${robotId}/${typ}`)
   const ws = new WebSocket(`${WS_BASE}/${robotId}/${typ}`)
   wsClients.value[key] = ws
 
+  ws.onopen = () => {
+    console.log(`✅ WS opened: ${robotId}/${typ}`)
+  }
+
   ws.onmessage = (e) => {
-    let data
+    let packet
     try {
-      data = JSON.parse(e.data)
+      packet = JSON.parse(e.data)
     } catch (err) {
       console.error(`❌ Parse error [${key}]:`, err)
       return
     }
+    console.log(`📦 [${key}]`, packet)
 
-    const val = data?.value ?? Object.values(data)[0]
+    const values = packet?.data
+    if (!values) return
+
+    // ✅ 儲存完整 data
+    robotData.value[key] = values
+
+    // 🚀 emit 出完整一筆 { robotId, module, values }
+    emit('robot-update', { [key]: values })
+
+    // 🎯 Chart 預設用 AccX (若存在)
+    const val = values.AccX ?? Object.values(values).find(v => typeof v === 'number')
     if (!isNaN(val)) {
-      robotData.value[key] = val
-      emit('robot-update', { [key]: val })
       addChart(key, val)
     }
   }
@@ -64,24 +76,28 @@ function initWS(robotId, typ) {
   }
 }
 
-// 接收 hover payload（未啟用：可保留）
+// --- 接收 ThreeScene 發來的 hover ---
 function handleRobotHover(payload) {
-  const { id, x, y } = payload
-  if (!id || !robotData.value[id]) {
+  const { id, module, x, y } = payload
+  const key = `${id}_${module || 'nicla'}` // 預設 nicla
+  const values = robotData.value[key]
+
+  if (!id || !values) {
     emit('robot-hover', null)
     return
   }
 
+  // ✅ 一定帶 values 出去
+  console.log("handleRobotHover emit:", { id, module, values })
   emit('robot-hover', {
     name: id,
-    label: `Robot ${id}`,
-    value: robotData.value[id],
+    module: module || 'nicla',
+    values,
     x,
     y
   })
 }
 
-// 建立所有 WebSocket 連線
 onMounted(() => {
   for (const id of ROBOT_IDS) {
     for (const typ of TYPES) {
@@ -90,9 +106,11 @@ onMounted(() => {
   }
 })
 
-// 卸載時斷開所有連線
 onBeforeUnmount(() => {
-  Object.values(wsClients.value).forEach(ws => ws?.close())
+  Object.keys(wsClients.value).forEach(k => {
+    wsClients.value[k]?.close()
+    delete wsClients.value[k]
+  })
 })
 </script>
 
@@ -103,6 +121,15 @@ onBeforeUnmount(() => {
   position: relative;
 }
 </style>
+
+
+
+
+
+
+
+
+
 
 
 

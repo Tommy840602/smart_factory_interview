@@ -1,11 +1,8 @@
-# stream_mqtt_sparkplug.py
 import os
 import sys
 import json
-import time
-import signal
-import threading
-from datetime import datetime, timedelta
+import asyncio
+from datetime import datetime
 from zoneinfo import ZoneInfo
 
 import paho.mqtt.client as mqtt
@@ -25,7 +22,6 @@ ROBOTS = [1, 2, 3, 4]
 DEVICES = ["left_arm", "right_arm", "nicla"]
 INTERVAL = float(os.getenv("GEN_INTERVAL_SEC", "0.5"))
 TZ = ZoneInfo("Asia/Taipei")
-RUNNING = True
 
 # MQTT / Sparkplug
 MQTT_BROKER = os.getenv("MQTT_BROKER", "localhost")
@@ -35,23 +31,17 @@ SP_EDGE_ID = os.getenv("SP_EDGE_ID", "robotEdge")
 SP_NAMESPACE = os.getenv("SP_NAMESPACE", "spBv1.0")
 
 # Kafka
-local_producer = None
-cloud_producer = None
-if callable(get_local_producer):
-    try:
-        local_producer = get_local_producer()
-    except Exception as e:
-        sys.stderr.write(f"[Kafka local init error] {e}\n")
-else:
-    local_producer = get_local_producer
+try:
+    local_producer = get_local_producer()
+except Exception as e:
+    sys.stderr.write(f"[Kafka local init error] {e}\n")
+    local_producer = None
 
-if callable(get_cloud_producer):
-    try:
-        cloud_producer = get_cloud_producer()
-    except Exception as e:
-        sys.stderr.write(f"[Kafka cloud init error] {e}\n")
-else:
-    cloud_producer = get_cloud_producer
+try:
+    cloud_producer = get_cloud_producer()
+except Exception as e:
+    sys.stderr.write(f"[Kafka cloud init error] {e}\n")
+    cloud_producer = None
 
 
 # ========= Sparkplug helpers =========
@@ -78,7 +68,7 @@ DT = _resolve_datatype_enum(sparkplug)
 
 def build_sp_payload(record: dict) -> bytes:
     payload = sparkplug.Payload()
-    payload.timestamp = int(time.time() * 1000)
+    payload.timestamp = int(datetime.now().timestamp() * 1000)
 
     for k, v in record.items():
         if isinstance(v, (int, float)):
@@ -124,18 +114,18 @@ def init_mqtt():
     mqtt_client.loop_start()
 
 
-# ========= Worker =========
-def worker(robot_id: int, device: str):
+# ========= Async Worker =========
+async def worker(robot_id: int, device: str):
     sp_device = f"robot_{robot_id}_{device}"
     sp_topic = f"{SP_NAMESPACE}/{SP_GROUP_ID}/DDATA/{SP_EDGE_ID}/{sp_device}"
 
     kafka_topic = f"robot.robot_{robot_id}.{device}"
-    kafka_key = f"robot_{robot_id}_{device}"
+    kafka_key = f"{robot_id}_{device}"
 
     gen = generate_record if device in ("left_arm", "right_arm") else generate_nicla_record
-    ts = datetime.now(TZ)
 
-    while RUNNING:
+    while True:
+        ts = datetime.now(TZ)
         rec = gen(ts)
         rec["robot_id"] = robot_id
         rec["device"] = device
@@ -153,36 +143,19 @@ def worker(robot_id: int, device: str):
         except Exception as e:
             sys.stderr.write(f"[Kafka publish error] {kafka_topic}: {e}\n")
 
-        ts += timedelta(seconds=INTERVAL)
-        time.sleep(INTERVAL)
+        await asyncio.sleep(INTERVAL)
 
 
 # ========= Lifecycle =========
-threads = []
-
-def start_all():
+async def start_sparkplug_streams():
     init_mqtt()
     total = len(ROBOTS) * len(DEVICES)
     print(f"[Runner] MQTT(Sparkplug B) + Kafka(JSON) | {total} streams @ {INTERVAL}s")
+
     for rid in ROBOTS:
         for dev in DEVICES:
-            t = threading.Thread(target=worker, args=(rid, dev), daemon=True)
-            t.start()
-            threads.append(t)
+            asyncio.create_task(worker(rid, dev))
 
-def stop_all(*_):
-    global RUNNING
-    RUNNING = False
-    time.sleep(0.6)
-    try:
-        mqtt_client.loop_stop()
-        mqtt_client.disconnect()
-    except Exception:
-        pass
-    for t in threads:
-        t.join(timeout=2)   # 等待 thread 收尾
-    print("[Runner] shutdown complete.")
-    sys.exit(0)
 
 
 

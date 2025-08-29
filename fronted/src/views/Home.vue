@@ -4,6 +4,7 @@
     <div class="section"><Weather /></div>
     <div class="section"><Earthquake /></div>
     <div class="section"><Ups /></div>
+
     <div class="section three-section opuca-section">
       <!-- Three.js 主視覺 -->
       <ThreeScene
@@ -11,22 +12,23 @@
         :robotData="robotData"
         :chartRecords="chartRecords"
         @sensor-hover="onSensorHover"
-        @robot-hover="onRobotHover"
+        @robot-hover="handleRobotHover"  
       />
 
-      <!-- ✅ MQTT 感測圈 hover 顯示即時圖表 -->
+      <!-- ✅ MQTT 感測圈 hover ➝ 即時圖表 -->
       <HoverInfo
         v-if="sensorHover"
         :hoverData="sensorHover"
         :chartRecords="chartRecords"
       />
 
-      <!-- ✅ WebSocket Robot hover 顯示 3 模組表格 -->
+      <!-- ✅ Robot hover ➝ 資訊卡（表格） -->
       <HoverRobot
         v-if="robotHover"
-        :hover="robotHover"
+        :hoverData="robotHover"
         :robotId="selectedRobotId"
         :records="chartRecordsByType"
+        :robotData="robotData"   
       />
 
       <!-- ✅ MQTT Sensor stream -->
@@ -39,6 +41,7 @@
       <SceneWrapper2
         @robot-update="handleRobotUpdate"
         @chart-update="handleChartUpdate"
+        @robot-hover="setRobotHover"   
       />
     </div>
 
@@ -63,7 +66,7 @@ import SceneWrapper2 from '@/pages/SceneWrapper2.vue'
 
 // 🧠 狀態容器
 const sensorData = ref({})
-const robotData = ref({})
+const robotData = ref({})   // WebSocket 更新進來的最新值
 const chartRecords = ref({})
 
 const sensorHover = ref(null)
@@ -75,14 +78,10 @@ const selectedRobotId = computed(() => {
   return selectedRobot.value ? selectedRobot.value.split('_').slice(0, 2).join('_') : null
 })
 
-// ✅ 提取所有 robot 模組的資料，分為 left_arm / right_arm / nicla
+// ✅ 提取所有 robot 模組的資料
 const chartRecordsByType = computed(() => {
   if (!selectedRobot.value) return {}
-  const result = {
-    left_arm: [],
-    right_arm: [],
-    nicla: [],
-  }
+  const result = { left_arm: [], right_arm: [], nicla: [] }
   const robotId = selectedRobot.value.split('_').slice(0, 2).join('_')
   for (const key in chartRecords.value) {
     if (key.startsWith(robotId)) {
@@ -93,18 +92,31 @@ const chartRecordsByType = computed(() => {
   return result
 })
 
-// 🔁 Hover 事件
+// 🔁 Hover 處理
 function onSensorHover(hover) {
   sensorHover.value = hover
 }
 
-function onRobotHover(hover) {
-  if (!hover || !hover.name?.startsWith('robot_')) {
+// ⬅️ ThreeScene 傳過來的 robot-hover
+function handleRobotHover(hover) {
+  if (!hover || !hover.name?.toLowerCase().startsWith('robot_')) {
     robotHover.value = null
     selectedRobot.value = null
   } else {
+    // 先只存 name & 坐標，values 由 SceneWrapper2 來補
     robotHover.value = hover
-    selectedRobot.value = hover.name
+    selectedRobot.value = hover.name.toLowerCase()
+  }
+}
+
+// ⬅️ SceneWrapper2 補上 values
+function setRobotHover(hover) {
+  if (hover) {
+    robotHover.value = hover   // ✅ 現在一定有 values
+    selectedRobot.value = hover.name.toLowerCase()
+  } else {
+    robotHover.value = null
+    selectedRobot.value = null
   }
 }
 
@@ -115,10 +127,12 @@ function handleSensorUpdate(payload) {
 
 // 🌐 WebSocket ➝ robot data
 function handleRobotUpdate(payload) {
-  robotData.value = { ...robotData.value, ...payload }
+  for (const key in payload) {
+    robotData.value[key] = payload[key]
+  }
 }
 
-// 📈 Chart 更新（統一處理 MQTT + WebSocket）
+// 📈 Chart 更新
 function handleChartUpdate({ name, value }) {
   const records = chartRecords.value[name] || []
   records.push({ time: Date.now(), value })
@@ -149,10 +163,11 @@ function handleChartUpdate({ name, value }) {
   min-height: 500px;
   position: relative;
 }
-.opcua-section {
-  border: 2px solid #2196F3;
-}
 </style>
+
+
+
+
 
 
 
