@@ -1,7 +1,8 @@
 <template>
     <div class="status-box">
-        <h3>Real-time Reserve Margin: {{ data.reserve_percent }}%</h3>
-        <h3>Remaining Reserve: {{ (data.reserve_w * 0.01).toFixed(2) }} GW</h3>
+        <h3>Power Info:</h3>
+        <p>Real-time Reserve Margin: {{ data.reserve_percent }} %</p>
+        <p>Remaining Reserve: {{ (data.reserve_w * 0.01).toFixed(2) }} GW</p>
         <div :class="['indicator', data.indicator]"></div>
     </div>
 </template>
@@ -26,7 +27,7 @@
 
 <style scoped>
     .status-box {
-        text-align: center;
+        text-align: left;
     }
 
     .indicator {

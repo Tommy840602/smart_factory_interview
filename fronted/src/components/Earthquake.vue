@@ -1,16 +1,30 @@
 <template>
   <div class="p-4">
-    <h2 class="text-xl font-bold mb-4">Earthquake Message</h2>
-
+    <h3 class="text-xl mb-2">Earthquake Message:</h3>
     <div v-if="loading">Loading...</div>
     <div v-else-if="error" class="text-red-600">{{ error }}</div>
-
-    <div v-else>
-      <div v-for="msg in messages" :key="msg.id" class="border rounded-lg p-3 mb-3 shadow">
-        <!-- 用 formatDate 轉換 -->
-        <p class="text-gray-500 text-sm">{{ formatDate(msg.date) }}</p>
-        <p class="font-semibold text-blue-600">Source: {{ msg.sender_name }}</p>
-        <pre class="whitespace-pre-wrap">{{ msg.text }}</pre>
+    <div
+      v-else
+      class="border rounded-lg shadow p-3 h-[300px] overflow-y-auto bg-gray-50"
+    >
+      <div
+        v-for="msg in messages"
+        :key="msg.id"
+        class="mb-4 pb-2 border-b last:border-none"
+      >
+        <!-- 日期 -->
+        <p class="text-gray-500 text-xs">{{ formatDate(msg.date) }}</p>
+        <!-- 來源 -->
+        <p class="font-semibold text-blue-600 text-xs">
+          Source: {{ msg.sender_name }}
+        </p>
+        <!-- 內文 -->
+        <div
+          class="h-[300px] overflow-y-auto border rounded-lg shadow p-3 bg-gray-50
+                text-[12px] leading-[20px] font-sans whitespace-pre-line break-words"
+        >
+          {{ msg.text.trim() }}
+        </div>
       </div>
     </div>
   </div>
@@ -23,6 +37,13 @@ const messages = ref([])
 const loading = ref(true)
 const error = ref(null)
 let timer = null
+
+function formatQuakeText(text) {
+  if (!text) return ''
+  return text
+    .replace(/\\n/g, '\n')   // 把字面上的 "\n" 轉回真正換行
+    .trim()
+}
 
 async function loadMessages() {
   try {

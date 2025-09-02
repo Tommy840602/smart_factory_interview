@@ -9,7 +9,8 @@ import json, os
 from zoneinfo import ZoneInfo
 from copy import deepcopy
 from dotenv import load_dotenv
-from backend.core.config import get_local_producer, get_cloud_producer
+from backend.core.config import get_local_producer
+#from backend.core.config import get_cloud_producer
 from google.cloud import storage
 import pandas as pd
 import pyarrow as pa
@@ -39,17 +40,17 @@ def json_serializer(obj):
 def send_kafka(topic, payload):
     data = json.dumps(payload, default=json_serializer).encode("utf-8")
     local = get_local_producer()
-    cloud = get_cloud_producer()
+    #cloud = get_cloud_producer()
     if local:
         try:
             local.send(topic, data)
         except Exception as e:
             print(f"[本地Kafka] 發送失敗：{e}")
-    if cloud:
-        try:
-            cloud.send(topic, data)
-        except Exception as e:
-            print(f"[CloudKafka] 發送失敗：{e}")
+    #if cloud:
+     #   try:
+     #       cloud.send(topic, data)
+     #   except Exception as e:
+      #      print(f"[CloudKafka] 發送失敗：{e}")
 
 # ====== OU 模擬器 ======
 def simulate_ou(dt, steps, C, y0, theta, sigma):

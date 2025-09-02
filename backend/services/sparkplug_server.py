@@ -11,7 +11,8 @@ import paho.mqtt.client as mqtt
 from backend.utils import sparkplug_b_pb2 as sparkplug
 
 # Kafka Producers
-from backend.core.config import get_local_producer, get_cloud_producer
+from backend.core.config import get_local_producer
+#from backend.core.config import get_cloud_producer
 
 # Data Generators
 from backend.utils.robot_generator import generate_record, generate_nicla_record
@@ -37,11 +38,11 @@ except Exception as e:
     sys.stderr.write(f"[Kafka local init error] {e}\n")
     local_producer = None
 
-try:
-    cloud_producer = get_cloud_producer()
-except Exception as e:
-    sys.stderr.write(f"[Kafka cloud init error] {e}\n")
-    cloud_producer = None
+#try:
+    #cloud_producer = get_cloud_producer()
+#except Exception as e:
+ #   sys.stderr.write(f"[Kafka cloud init error] {e}\n")
+  #  cloud_producer = None
 
 
 # ========= Sparkplug helpers =========
@@ -99,11 +100,11 @@ def send_kafka(topic: str, key: str, record: dict):
             local_producer.send(topic, value=data, key=k)
         except Exception as e:
             sys.stderr.write(f"[Kafka local send error] {topic}: {e}\n")
-    if cloud_producer:
-        try:
-            cloud_producer.send(topic, value=data, key=k)
-        except Exception as e:
-            sys.stderr.write(f"[Kafka cloud send error] {topic}: {e}\n")
+    #if cloud_producer:
+     #   try:
+      #      cloud_producer.send(topic, value=data, key=k)
+      #  except Exception as e:
+       #     sys.stderr.write(f"[Kafka cloud send error] {topic}: {e}\n")
 
 
 # ========= MQTT init =========

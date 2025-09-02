@@ -12,27 +12,16 @@ weather_router = APIRouter(tags=["Weather"])
 # ===== 接收 GPS 座標 =====
 @weather_router.post("/gps_location")
 async def receive_location(location: Location, redis: Redis = Depends(get_redis)):
-    await redis.set("gps", json.dumps({"lon": location.lon, "lat": location.lat}), ex=60)
-    return {"status": "Location Received", "lon": location.lon, "lat": location.lat}
+    gps = {"lon": location.lon, "lat": location.lat}
+    await redis.set("gps", json.dumps(gps), ex=3600)
 
-
-# ===== 取得最近測站資料 =====
-@weather_router.post("/weather")
-async def get_nearest_station(location: Location, redis: Redis = Depends(get_redis)):
-    gps_value = await redis.get("gps")
-    if gps_value is None:
-        return {"Error": "No GPS data available. Please set location first using /gps_location endpoint."}
-
-    gps_data = json.loads(gps_value)
-    lat, lon = gps_data["lat"], gps_data["lon"]
-
-    url = "https://opendata.cwa.gov.tw/api/v1/rest/datastore/O-A0003-001?Authorization=CWA-88D62B68-5C16-456B-8D80-E11CAD258497"
+    # ===== 最近測站 API =====
+    url_station = "https://opendata.cwa.gov.tw/api/v1/rest/datastore/O-A0003-001?Authorization=CWA-88D62B68-5C16-456B-8D80-E11CAD258497"
     try:
         async with httpx.AsyncClient(timeout=10.0, verify=False) as client:
-            res = await client.get(url)
-            data = res.json()
-
-        stations = data['records']['Station']
+            res_station = await client.get(url_station)
+            data_station = res_station.json()
+        stations = data_station['records']['Station']
 
         def get_wgs84_coords(st):
             for coord in st['GeoInfo']['Coordinates']:
@@ -40,69 +29,47 @@ async def get_nearest_station(location: Location, redis: Redis = Depends(get_red
                     return float(coord['StationLongitude']), float(coord['StationLatitude'])
             return None, None
 
-        nearest = min(stations, key=lambda st: haversine(lon, lat, *get_wgs84_coords(st)))
-        nearest_lon, nearest_lat = get_wgs84_coords(nearest)
-        distance = haversine(lon, lat, nearest_lon, nearest_lat)
+        nearest = min(stations, key=lambda st: haversine(location.lon, location.lat, *get_wgs84_coords(st)))
+        county = nearest["GeoInfo"]["CountyName"]
 
-        # 存 county 到 redis（給 /suntime、/telegram 用）
-        await redis.set("country", json.dumps({"CountyName": nearest["GeoInfo"]["CountyName"]}), ex=60)
+        # 存 county 到 Redis（給 earthquake 用）
+        await redis.set("country", json.dumps({"CountyName": county}), ex=3600)
 
-        return {
-            "stationId": nearest["StationId"],
-            "stationName": nearest["StationName"],
-            "CountyName": nearest["GeoInfo"]["CountyName"],
-            "lat": nearest_lat,
-            "lon": nearest_lon,
-            "distance_km": round(distance, 2),
-            "weather": nearest["WeatherElement"]
-        }
+        # ===== 日出日落 API =====
+        today = datetime.datetime.now().strftime("%Y-%m-%d")
+        url_suntime = (
+            "https://opendata.cwa.gov.tw/api/v1/rest/datastore/A-B0062-001"
+            f"?Authorization=CWA-88D62B68-5C16-456B-8D80-E11CAD258497"
+            f"&format=JSON&CountyName={urllib.parse.quote(county)}&Date={today}"
+        )
 
-    except Exception as e:
-        return {"Error": f"Unable to connect to CWB API: {str(e)}"}
-
-
-# ===== 取得日出日落 =====
-@weather_router.post("/suntime")
-async def get_suntime(redis: Redis = Depends(get_redis)):
-    now = datetime.datetime.now().strftime("%Y-%m-%d")
-    coutryname_value = await redis.get("country")
-
-    if coutryname_value is None:
-        return {"Error": "No location data available. Please set location first using /weather endpoint."}
-
-    try:
-        coutryname_data = json.loads(coutryname_value)
-        coutryname = coutryname_data["CountyName"]
-    except (json.JSONDecodeError, KeyError) as e:
-        return {"Error": f"Invalid location data format: {str(e)}"}
-
-    url = (
-        "https://opendata.cwa.gov.tw/api/v1/rest/datastore/A-B0062-001"
-        "?Authorization=CWA-88D62B68-5C16-456B-8D80-E11CAD258497"
-        "&format=JSON&CountyName={0}&Date={1}"
-    ).format(urllib.parse.quote(coutryname), now)
-
-    try:
         async with httpx.AsyncClient(timeout=10.0, verify=False) as client:
-            res = await client.get(url)
-            data = res.json()
+            res_suntime = await client.get(url_suntime)
+            data_suntime = res_suntime.json()
 
-        locations = data.get("records", {}).get("locations", {}).get("location", [])
-        if not locations:
-            return {"Error": "No suntime data found"}
+        locations = data_suntime.get("records", {}).get("locations", {}).get("location", [])
+        suntime_data = {}
+        if locations:
+            time_info = locations[0].get("time", [])
+            if time_info:
+                suntime_data = {
+                    "Date": time_info[0].get("Date"),
+                    "SunRiseTime": time_info[0].get("SunRiseTime"),
+                    "SunSetTime": time_info[0].get("SunSetTime"),
+                }
 
-        location = locations[0]
-        time_info = location.get("time", [])
-        if not time_info:
-            return {"Error": "No time data in location"}
-
-        time_data = time_info[0]
-
+        # ===== 最終整合回傳 =====
         return {
-            "CountyName": location.get("CountyName"),
-            "Date": time_data.get("Date"),
-            "SunRiseTime": time_data.get("SunRiseTime"),
-            "SunSetTime": time_data.get("SunSetTime"),
+            "status": "Location Received",
+            "lat": location.lat,
+            "lon": location.lon,
+            "station": {
+                "stationId": nearest["StationId"],
+                "stationName": nearest["StationName"],
+                "CountyName": county,
+                "weather": nearest["WeatherElement"]
+            },
+            "suntime": suntime_data
         }
 
     except Exception as e:

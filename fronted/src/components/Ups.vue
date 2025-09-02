@@ -1,13 +1,13 @@
 <template>
          <div>
-            <h3>UPS Info</h3>
-            <p>Battery Charge:{{ ups.battery_charge }}%</p>
-            <p>Battery Runtime:{{ ups.battery_runtime}}s</p>
-            <p>UPS status:{{ ups.ups_status }}</p>
-            <p>Light:<span :style="{ color: getColor(ups.light)}">●</span></p>
-            <p>UPS Load:{{ ups.ups_load }}%</p>
-            <p>Input Voltage:{{ ups.input_voltage}}V</p>
-            <p>Output Voltage:{{ ups.output_voltage }}V</p>
+            <h3>UPS Info:</h3>
+            <p>Battery Charge: {{ ups.battery_charge }}%</p>
+            <p>Battery Runtime: {{ ups.battery_runtime}}s</p>
+            <p>UPS status: {{ ups.ups_status }}</p>
+            <p>Light:<span :style="{ color: getColor(ups.light)}"> ●</span></p>
+            <p>UPS Load: {{ ups.ups_load }}%</p>
+            <p>Input Voltage: {{ ups.input_voltage}}V</p>
+            <p>Output Voltage: {{ ups.output_voltage }}V</p>
         </div>   
 </template>
 

@@ -1,14 +1,14 @@
 {
-  "robot_1_left_arm": "20250830T045359",
-  "robot_1_right_arm": "20250830T045359",
-  "robot_1_nicla": "20250830T045359",
-  "robot_2_left_arm": "20250830T045359",
-  "robot_2_right_arm": "20250830T045359",
-  "robot_2_nicla": "20250830T045359",
-  "robot_3_left_arm": "20250830T045359",
-  "robot_3_right_arm": "20250830T045359",
-  "robot_3_nicla": "20250830T045359",
-  "robot_4_left_arm": "20250830T045422",
-  "robot_4_right_arm": "20250830T045423",
-  "robot_4_nicla": "20250830T045423"
+  "robot_1_left_arm": "20250903T035610",
+  "robot_1_right_arm": "20250903T035610",
+  "robot_1_nicla": "20250903T035611",
+  "robot_2_left_arm": "20250903T035612",
+  "robot_2_right_arm": "20250903T035612",
+  "robot_2_nicla": "20250903T035613",
+  "robot_3_left_arm": "20250903T035613",
+  "robot_3_right_arm": "20250903T035613",
+  "robot_3_nicla": "20250903T035614",
+  "robot_4_left_arm": "20250903T035614",
+  "robot_4_right_arm": "20250903T035615",
+  "robot_4_nicla": "20250903T035616"
 }

@@ -10,7 +10,8 @@ from backend.model.autoencoder import Autoencoder
 import json
 import time  
 from dotenv import load_dotenv
-from backend.core.config import get_local_producer,get_cloud_producer
+from backend.core.config import get_local_producer
+#from backend.core.config import get_cloud_producer
 
 load_dotenv()
 KAFKA_SERVER = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "localhost:9092")
@@ -50,17 +51,17 @@ class ImageStreamerServicer(pb2_grpc.ImageStreamerServicer):
 def send_kafka(topic, payload):
     data = json.dumps(payload).encode("utf-8") if not isinstance(payload, bytes) else payload
     local = get_local_producer()
-    cloud = get_cloud_producer()
+    #cloud = get_cloud_producer()
     if local:
         try:
             local.send(topic, data)
         except Exception as e:
             print(f"[本地Kafka] 發送失敗：{e}")
-    if cloud:
-        try:
-            cloud.send(topic, data)
-        except Exception as e:
-            print(f"[CloudKafka] 發送失敗：{e}")
+    #if cloud:
+    #    try:
+   #         cloud.send(topic, data)
+    #    except Exception as e:
+     #       print(f"[CloudKafka] 發送失敗：{e}")
 
 class ImageClassifierServicer(pb2_grpc.ImageClassifierServicer):
     def Classify(self, request_iterator, context):

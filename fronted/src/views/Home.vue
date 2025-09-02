@@ -1,9 +1,11 @@
 <template>
   <div class="home-container">
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:20px">
     <div class="section"><Power /></div>
     <div class="section"><Weather /></div>
     <div class="section"><Earthquake /></div>
     <div class="section"><Ups /></div>
+  </div>
 
     <div class="section three-section opuca-section">
       <!-- Three.js 主視覺 -->
@@ -25,6 +27,7 @@
       <!-- ✅ Robot hover ➝ 資訊卡（表格） -->
       <HoverRobot
         v-if="robotHover"
+        mode="hover"
         :hoverData="robotHover"
         :robotId="selectedRobotId"
         :records="chartRecordsByType"
@@ -164,6 +167,10 @@ function handleChartUpdate({ name, value }) {
   position: relative;
 }
 </style>
+
+
+
+
 
 
 

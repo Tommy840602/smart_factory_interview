@@ -46,15 +46,15 @@ def get_local_producer():
         value_serializer=lambda v: v.encode('utf-8') if isinstance(v, str) else v,
     )
 
-def get_cloud_producer():
-    return KafkaProducer(
-        bootstrap_servers=settings.KAFKA_CLOUD_BOOTSTRAP,
-        security_protocol="SASL_SSL",
-        sasl_mechanism="PLAIN",
-        sasl_plain_username=settings.KAFKA_CLOUD_USER,
-        sasl_plain_password=settings.KAFKA_CLOUD_PASS,
-        value_serializer=lambda v: v.encode('utf-8') if isinstance(v, str) else v,
-    )
+#def get_cloud_producer():
+#    return KafkaProducer(
+#        bootstrap_servers=settings.KAFKA_CLOUD_BOOTSTRAP,
+#        security_protocol="SASL_SSL",
+#        sasl_mechanism="PLAIN",
+#        sasl_plain_username=settings.KAFKA_CLOUD_USER,
+#        sasl_plain_password=settings.KAFKA_CLOUD_PASS,
+#        value_serializer=lambda v: v.encode('utf-8') if isinstance(v, str) else v,
+#    )
 
 
 ROBOT_IDS = [f"robot_{i}" for i in range(1, 5)]
