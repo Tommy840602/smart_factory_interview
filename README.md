@@ -15,7 +15,7 @@
 - **Sensor (感測器資料)**  
   - 模擬方式：Ornstein–Uhlenbeck 隨機過程  
   - 傳輸協議：MQTT  
-  - 流向：MQTT ➝ Kafka ➝ MongoDB  
+  - 流向：MQTT ➝ Kafka ➝ MongoDB  (熱資料庫)
 
 - **UPS (不斷電系統)**  
   - 模擬方式：隨機生成狀態  
