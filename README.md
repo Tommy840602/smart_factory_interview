@@ -78,6 +78,13 @@
 - **GKE部署**：進行中
 
 
+## 📬 聯絡方式
+
+- 👤 **姓名**：Yen-Wei Huang  
+- 📧 **Email**：tommy840602@gmail.com 
+- 💻 **GitHub**：[https://github.com/yourusername](github.com/Tommy840602)  
+- 🔗 **LinkedIn**：[https://www.linkedin.com/in/yourusername]((https://www.linkedin.com/in/yen-wei-huang/))  
+
 👉 本專案展現了 **IoT + AI + Cloud + 3D Digital Twin** 的完整實踐，涵蓋 **資料工程、全端開發、雲端部署、工廠自動化**，可作為智慧製造與工業 4.0 的落地解決方案。
 
 Copyright © 2025 Tommy.Huang
