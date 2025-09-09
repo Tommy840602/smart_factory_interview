@@ -74,10 +74,11 @@
 - **AI 輔助**：結合時間序列預測與異常影像偵測  
 
 ---
+## 🚀 未來發展
+- **GKE部署**：進行中
 
 
 👉 本專案展現了 **IoT + AI + Cloud + 3D Digital Twin** 的完整實踐，涵蓋 **資料工程、全端開發、雲端部署、工廠自動化**，可作為智慧製造與工業 4.0 的落地解決方案。
-
 
 Copyright © 2025 Tommy.Huang
 This project for interview
