@@ -28,7 +28,8 @@
   - 流向：MQTT Broker ➝ Kafka ➝ PostgreSQL (熱資料庫)  
 
 - **Image (影像資料)**  
-  - 資料來源：GCP Storage (Screw Anomalies Dataset: https://www.kaggle.com/datasets/hkayan/industrial-robotic-arm-anomaly-detection)  
+  - 資料來源：GCP Storage
+    (Screw Anomalies Dataset: https://www.kaggle.com/datasets/hkayan/industrial-robotic-arm-anomaly-detection)  
   - 傳輸協議：gRPC  
   - 流向：gRPC Server ➝ Autoencoder + KNN 模型 ➝ Kafka ➝ 前端異常檢測展示結果  
 
@@ -76,9 +77,6 @@
 
 
 👉 本專案展現了 **IoT + AI + Cloud + 3D Digital Twin** 的完整實踐，涵蓋 **資料工程、全端開發、雲端部署、工廠自動化**，可作為智慧製造與工業 4.0 的落地解決方案。
-
-
-
 
 
 Copyright © 2025 Tommy.Huang
