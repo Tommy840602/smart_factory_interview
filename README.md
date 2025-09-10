@@ -45,7 +45,7 @@
   - 流向：MQTT Broker ➝ Kafka ➝ PostgreSQL (熱資料庫)  
 
 - **Image (影像資料)**  
-  - 資料來源：GCP Storage
+  - 資料來源：GCP Storage </br>
     (Screw Anomalies Dataset: https://www.kaggle.com/datasets/hkayan/industrial-robotic-arm-anomaly-detection)  
   - 傳輸協議：gRPC  
   - 流向：gRPC Server ➝ Autoencoder + KNN 模型 ➝ Kafka ➝ 前端異常檢測展示結果  
