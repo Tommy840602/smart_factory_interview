@@ -42,7 +42,10 @@
 - **Robot (機械手臂資料)**  
   - 模擬方式：隨機生成動作數據  
   - 傳輸協議：Sparkplug-B over MQTT  
-  - 流向：MQTT Broker ➝ Kafka ➝ PostgreSQL (熱資料庫)  
+  - 流向：MQTT Broker ➝ Kafka ➝ PostgreSQL (熱資料庫)
+  - 3D Render Model: Blender </br>
+  (Robot Cell:https://sketchfab.com/kakesson)
+    
 
 - **Image (影像資料)**  
   - 資料來源：GCP Storage </br>
