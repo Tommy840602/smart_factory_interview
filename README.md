@@ -87,8 +87,8 @@
 ## 1️⃣ 本機啟動 (Local Development)
 
 ### 環境需求
-- Python 3.11+
-- Node.js 20+
+- Python 3.11
+- Node.js 20
 - Docker (可選，用於 Kafka / EMQX / PostgreSQL / MongoDB)
 
 ### 後端 (Backend)
