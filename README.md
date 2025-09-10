@@ -50,8 +50,8 @@
   - 傳輸協議：gRPC  
   - 流向：gRPC Server ➝ Autoencoder + KNN 模型 ➝ Kafka ➝ 前端異常檢測展示結果  
 
-- **Open data (Weather,Power reserve rate)**  
-  - 資料來源: Taipower,CWB
+- **Open data (Weather,Power reserve rate,Eearthquake Info.)**  
+  - 資料來源: Taipower,CWB,Telegram group:TWEearthquake
   - 傳輸協議：WebSocket  
   - 流向：FastAPI WS ➝ 前端 Dashboard 
 
@@ -87,7 +87,7 @@
 - **跨協議整合**：MQTT、Sparkplug-B、WebSocket、gRPC  
 - **多來源模擬器**：Robot / Sensor / UPS / Image 四類設備完整覆蓋  
 - **資料分層架構**：PostgreSQL 熱存取 + GCP Storage 冷存取  
-- **即時可視化**：Vue + Three.js 數位孿生工廠  
+- **即時可視化**：Vue + Three.js 3D Render
 - **AI 輔助**：結合時間序列預測與異常影像偵測  
 
 ---
