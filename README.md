@@ -90,9 +90,10 @@
 ### 環境需求
 - Python 3.11+
 - Node.js 20+
-- Docker (可選)
+- Docker (可選，用於 Kafka / EMQX / PostgreSQL / MongoDB)
 
 ### 後端 (Backend)
+```bash
 cd backend
 python -m venv venv
 source venv/bin/activate   # Windows: venv\Scripts\activate
