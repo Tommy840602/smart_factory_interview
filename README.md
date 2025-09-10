@@ -82,6 +82,33 @@
   - Ornstein–Uhlenbeck Process (Sensor 模擬)  
 
 ---
+# 🚀 啟動方法 (How to Run)
+
+## 1️⃣ 本機啟動 (Local Development)
+
+### 環境需求
+- Python 3.11+
+- Node.js 20+
+- Docker (可選)
+
+### 後端 (Backend)
+```bash
+cd backend
+python -m venv venv
+source venv/bin/activate   # Windows: venv\Scripts\activate
+pip install -r requirements.txt
+
+# 啟動 FastAPI
+uvicorn main:app --reload --host 0.0.0.0 --port 8000
+
+### 前端 (Frontend)
+```bash
+cd frontend
+npm install
+npm run dev
+# 預設埠: http://localhost:5173
+
+---
 
 ## 🌟 專案亮點
 - **跨協議整合**：MQTT、Sparkplug-B、WebSocket、gRPC  
