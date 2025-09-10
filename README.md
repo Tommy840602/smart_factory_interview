@@ -101,13 +101,15 @@ pip install -r requirements.txt
 
 # 啟動 FastAPI
 uvicorn main:app --reload --host 0.0.0.0 --port 8000
+```
 
 ### 前端 (Frontend)
+```bash
 cd frontend
 npm install
 npm run dev
 # 預設埠: http://localhost:5173
-
+```
 
 ---
 
