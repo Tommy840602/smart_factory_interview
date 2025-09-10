@@ -77,7 +77,6 @@
   - GCP Storage (Image 冷資料, Parquet 歷史)  
 
 - **AI 模型**  
-  - ARIMA (Sensor 預測)  
   - Autoencoder + KNN (影像瑕疵檢測)  
   - Ornstein–Uhlenbeck Process (Sensor 模擬)  
 
